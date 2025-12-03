@@ -47,7 +47,8 @@ export async function initializePersonalize(): Promise<boolean> {
   initializationPromise = (async () => {
     try {
       // Dynamic import to avoid SSR issues
-      const Personalize = (await import('@contentstack/personalize-edge-sdk')).default;
+      const PersonalizeModule = await import('@contentstack/personalize-edge-sdk');
+      const Personalize = PersonalizeModule.default || PersonalizeModule;
       
       // Initialize and store the SDK INSTANCE (not global namespace)
       personalizeInstance = await Personalize.init(PROJECT_UID);
@@ -55,7 +56,8 @@ export async function initializePersonalize(): Promise<boolean> {
       
       return personalizeInstance;
     } catch (error) {
-      console.error('Personalize SDK initialization failed:', error);
+      // Silent fail - don't block the app if personalize fails
+      console.warn('Personalize SDK initialization skipped:', error instanceof Error ? error.message : 'Unknown error');
       isInitialized = false;
       return null;
     }

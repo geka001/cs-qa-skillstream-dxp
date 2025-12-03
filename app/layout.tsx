@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { AppProvider } from "@/contexts/AppContext";
 import { ManagerProvider } from "@/contexts/ManagerContext";
+import { Toaster } from 'sonner';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -22,6 +23,7 @@ export default function RootLayout({
         <ManagerProvider>
           <AppProvider>
             {children}
+            <Toaster position="top-right" richColors />
           </AppProvider>
         </ManagerProvider>
       </body>

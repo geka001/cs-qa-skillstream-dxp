@@ -86,9 +86,9 @@ export function calculateTeamStats(users: any[]) {
   }, 0);
   
   // Calculate average quiz score
-  const allScores = users.flatMap(user => Object.values(user.quizScores || {}));
+  const allScores = users.flatMap(user => Object.values(user.quizScores || {}) as number[]);
   const averageQuizScore = allScores.length > 0
-    ? allScores.reduce((a: number, b: number) => a + b, 0) / allScores.length
+    ? allScores.reduce((a, b) => a + b, 0) / allScores.length
     : 0;
   
   // Total time spent

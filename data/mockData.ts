@@ -2037,7 +2037,6 @@ export async function getPersonalizedContentAsync(
       );
     }
   } catch (error) {
-    console.error('Error fetching from Contentstack, using mockData:', error);
     // Fallback to mockData on error
     modules = mockModules.filter(m => 
       (!team || !m.targetTeams || m.targetTeams.includes(team)) &&
@@ -2083,8 +2082,6 @@ export function getPersonalizedContent(
   }
   
   // Fallback to mockData if cache is empty
-  console.log('📦 Using mockData (Contentstack cache empty)');
-  
   let modules: Module[] = [];
   
   // Filter modules based on team first (if provided)
@@ -2220,17 +2217,13 @@ import { getManagerForTeam } from '@/lib/managerConfig';
 export async function getTools(team?: Team, segment?: UserSegment): Promise<Tool[]> {
   if (isContentstackEnabled) {
     try {
-      console.log('📦 Fetching tools from Contentstack...');
       const tools = await fetchTools(team, segment);
-      console.log(`✅ Fetched ${tools.length} tools from Contentstack`);
       return tools;
     } catch (error) {
-      console.warn('⚠️ Contentstack fetch failed, using mockData fallback:', error);
+      // Fallback to mockData on error
     }
   }
   
-  // Fallback to mockData
-  console.log('📦 Using mockData for tools');
   return mockTools.filter(tool => {
     // Filter by team
     if (team && !tool.isGeneric) {
@@ -2262,17 +2255,13 @@ export async function getTools(team?: Team, segment?: UserSegment): Promise<Tool
 export async function getSOPs(team?: Team, segment?: UserSegment): Promise<SOP[]> {
   if (isContentstackEnabled) {
     try {
-      console.log('📦 Fetching SOPs from Contentstack...');
       const sops = await fetchSOPs(team, segment);
-      console.log(`✅ Fetched ${sops.length} SOPs from Contentstack`);
       return sops;
     } catch (error) {
-      console.warn('⚠️ Contentstack fetch failed, using mockData fallback:', error);
+      // Fallback to mockData on error
     }
   }
   
-  // Fallback to mockData
-  console.log('📦 Using mockData for SOPs');
   return mockSOPs.filter(sop => {
     // Filter by team
     if (team) {
@@ -2302,19 +2291,13 @@ export async function getSOPs(team?: Team, segment?: UserSegment): Promise<SOP[]
 export async function getManagerConfigForTeam(team: Team): Promise<{ name: string; email: string }> {
   if (isContentstackEnabled) {
     try {
-      console.log(`📦 Fetching manager config for ${team} from Contentstack...`);
       const config = await fetchManagerConfig(team);
-      if (config) {
-        console.log(`✅ Fetched manager config from Contentstack`);
-        return config;
-      }
+      if (config) return config;
     } catch (error) {
-      console.warn('⚠️ Contentstack fetch failed, using mockData fallback:', error);
+      // Fallback to mockData on error
     }
   }
   
-  // Fallback to mockData
-  console.log('📦 Using mockData for manager config');
   const managerConfig = getManagerForTeam(team);
   return managerConfig ? { name: managerConfig.managerName, email: managerConfig.managerEmail } : { name: 'Manager', email: 'manager@example.com' };
 }

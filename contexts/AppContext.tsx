@@ -35,7 +35,25 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const useApp = () => {
   const context = useContext(AppContext);
   if (!context) {
-    throw new Error('useApp must be used within AppProvider');
+    // Return a safe default during initial render to prevent errors
+    return {
+      user: null,
+      setUser: async () => {},
+      analytics: { moduleCompletion: 0, averageQuizScore: 0, timeSpent: 0, lastActivity: '', segmentHistory: [] },
+      updateAnalytics: () => {},
+      completeModule: () => {},
+      updateSegment: () => {},
+      resetProfile: () => {},
+      isLoggedIn: false,
+      isLoading: true,
+      markContentRead: () => {},
+      markVideoWatched: () => {},
+      markSOPComplete: () => {},
+      markToolExplored: () => {},
+      checkOnboardingCompletion: () => {},
+      showOnboardingModal: false,
+      setShowOnboardingModal: () => {},
+    } as AppContextType;
   }
   return context;
 };
@@ -70,9 +88,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }, 2000); // 2 second debounce
   }, []);
 
-  // Initialize Personalize SDK on app load
+  // Initialize Personalize SDK on app load (non-blocking)
   useEffect(() => {
-    initializePersonalize();
+    initializePersonalize().catch(() => {
+      // Silent fail - don't block app if SDK fails
+    });
   }, []);
 
   // Remove localStorage save effects (now using Contentstack)

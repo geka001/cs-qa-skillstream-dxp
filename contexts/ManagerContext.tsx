@@ -20,7 +20,13 @@ const ManagerContext = createContext<ManagerContextType | undefined>(undefined);
 export const useManager = () => {
   const context = useContext(ManagerContext);
   if (!context) {
-    throw new Error('useManager must be used within ManagerProvider');
+    // Return a safe default during initial render to prevent errors
+    return {
+      isAuthenticated: false,
+      selectedTeam: null,
+      login: () => {},
+      logout: () => {},
+    } as ManagerContextType;
   }
   return context;
 };

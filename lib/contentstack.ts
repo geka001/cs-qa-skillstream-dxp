@@ -127,41 +127,19 @@ function getTeamFromEntry(entry: { target_teams?: string; team_taxonomy?: string
 async function fetchVariantsForEntry(entryUid: string): Promise<any[]> {
   try {
     // Determine base URL for API route
-    // In browser: use relative URL
-    // In server: use absolute URL with localhost
     const isServer = typeof window === 'undefined';
     const baseUrl = isServer ? 'http://localhost:3000' : '';
     
-    console.log(`📡 Fetching variants for ${entryUid} via API route...`);
-    
     const response = await fetch(`${baseUrl}/api/variants/${entryUid}`, {
       cache: 'no-store',
-      headers: {
-        'Content-Type': 'application/json'
-      }
+      headers: { 'Content-Type': 'application/json' }
     });
     
-    console.log(`   Response status: ${response.status}`);
-    
-    if (!response.ok) {
-      // 404 or error is expected for entries without variants
-      if (response.status === 404) {
-        console.log(`   No variants found (404)`);
-        return [];
-      }
-      const errorText = await response.text();
-      console.warn(`⚠️ Failed to fetch variants for ${entryUid}:`, response.status, errorText);
-      return [];
-    }
+    if (!response.ok) return [];
     
     const data = await response.json();
-    console.log(`   ✅ Received ${data.variants?.length || 0} variants`);
-    if (data.variants?.length > 0) {
-      console.log(`   Variants:`, data.variants.map((v: any) => ({ title: v.title, target_segments: v.target_segments })));
-    }
     return data.variants || [];
   } catch (error) {
-    console.error(`❌ Error fetching variants for ${entryUid}:`, error);
     return [];
   }
 }
@@ -171,21 +149,12 @@ async function fetchVariantsForEntry(entryUid: string): Promise<any[]> {
  * Returns the variant data if found, null otherwise
  */
 function findVariantForSegment(variants: any[], userSegment: UserSegment): any | null {
-  console.log(`🔍 findVariantForSegment: Looking for segment "${userSegment}" in ${variants?.length || 0} variants`);
+  if (!variants || variants.length === 0) return null;
   
-  if (!variants || variants.length === 0) {
-    console.log(`   ❌ No variants provided`);
-    return null;
-  }
-  
-  // Normalize segment for comparison
   const normalizedSegment = userSegment.toUpperCase().replace(/\s+/g, '_');
-  console.log(`   Normalized segment: "${normalizedSegment}"`);
   
   for (const variant of variants) {
-    // Check target_segments field in variant
     const targetSegments = variant.target_segments;
-    console.log(`   Checking variant "${variant.title}": target_segments = ${targetSegments}`);
     
     if (targetSegments) {
       try {
@@ -193,26 +162,19 @@ function findVariantForSegment(variants: any[], userSegment: UserSegment): any |
           ? JSON.parse(targetSegments) 
           : targetSegments;
         
-        console.log(`   Parsed segments:`, segments);
-        
         if (Array.isArray(segments)) {
           const match = segments.some((s: string) => {
             const normalizedS = s.toUpperCase().replace(/\s+/g, '_');
-            console.log(`      Comparing: "${normalizedS}" === "${normalizedSegment}" → ${normalizedS === normalizedSegment}`);
             return normalizedS === normalizedSegment;
           });
-          if (match) {
-            console.log(`   ✅ Found matching variant for segment ${userSegment}:`, variant.title);
-            return variant;
-          }
+          if (match) return variant;
         }
       } catch (e) {
-        console.warn('Failed to parse target_segments:', targetSegments, e);
+        // Skip invalid variant
       }
     }
   }
   
-  console.log(`   ❌ No matching variant found for segment "${userSegment}"`);
   return null;
 }
 
@@ -223,27 +185,17 @@ function findVariantForSegment(variants: any[], userSegment: UserSegment): any |
 function mergeVariantIntoEntry(baseEntry: any, variant: any): any {
   if (!variant) return baseEntry;
   
-  // Get the list of changed fields from variant metadata
   const changeSet = variant._variant?._change_set || [];
-  
-  console.log(`🔄 Merging variant. Changed fields: ${changeSet.join(', ')}`);
-  
-  // Create merged entry: start with base, override with variant's changed fields
   const merged = { ...baseEntry };
   
   for (const field of changeSet) {
     if (variant[field] !== undefined) {
       merged[field] = variant[field];
-      console.log(`   → Overriding field: ${field}`);
     }
   }
   
-  // Always copy title if variant has it (common change)
-  if (variant.title) {
-    merged.title = variant.title;
-  }
+  if (variant.title) merged.title = variant.title;
   
-  // Mark as variant for debugging
   merged._isVariant = true;
   merged._variantUid = variant._variant?._uid;
   
@@ -261,20 +213,12 @@ function getVariantForSegment(segment: UserSegment): string {
 }
 
 function extractVariantContent(field: any, variantKey: string): string {
-  // If field is an object (variant-enabled)
   if (field && typeof field === 'object' && !Array.isArray(field)) {
     if (field[variantKey]) return field[variantKey];
     if (field._default) return field._default;
     if (field.rookie_version) return field.rookie_version;
   }
-  
-  // If field is a string (non-variant entry), return as-is
-  if (typeof field === 'string') {
-    return field;
-  }
-  
-  // Default empty string
-  console.log('❌ No content found');
+  if (typeof field === 'string') return field;
   return '';
 }
 
@@ -546,9 +490,6 @@ export async function getCsModules(userTeam: Team, userSegment: UserSegment): Pr
   }
 
   try {
-    console.log(`🔍 getCsModules called with: { team: "${userTeam}", segment: "${userSegment}" }`);
-    console.log(`📦 Fetching modules from Contentstack for team: ${userTeam}, segment: ${userSegment}...`);
-
     // Fetch modules
     const entries = await fetchFromContentstack<{
       uid: string;
@@ -607,58 +548,34 @@ export async function getCsModules(userTeam: Team, userSegment: UserSegment): Pr
       
       // Check if team matches
       const teamMatch = targetTeams.length > 0 && taxonomyIncludes(targetTeams, userTeamTerm);
-      
-      if (!teamMatch) {
-        console.log(`🔍 Skipping "${entry.title}": team doesn't match (${JSON.stringify(targetTeams)} vs ${userTeamTerm})`);
-        continue;
-      }
+      if (!teamMatch) continue;
       
       // Check if this is a SINGLE-TEAM module (potential variant candidate)
       const isSingleTeam = hasSingleTeam(entry);
       
       if (isSingleTeam) {
-        console.log(`🎯 Single-team module detected: "${entry.title}" (Team: ${getTeamFromEntry(entry)})`);
-        
-        // Fetch variants for this entry
         const variants = await fetchVariantsForEntry(entry.uid);
         
         if (variants.length > 0) {
-          console.log(`   📋 Found ${variants.length} variant(s) for this module`);
-          
-          // Check if any variant matches user's segment
           const matchingVariant = findVariantForSegment(variants, userSegment);
-          
           if (matchingVariant) {
-            // Use variant data merged with base entry
             const mergedEntry = mergeVariantIntoEntry(entry, matchingVariant);
-            console.log(`   ✅ Using VARIANT for segment ${userSegment}: "${mergedEntry.title}"`);
             processedEntries.push(mergedEntry);
             continue;
           }
         }
         
-        // No variant found - check if base entry segment matches
         const segmentMatch = targetSegments.length > 0 && taxonomyIncludes(targetSegments, userSegmentTerm);
         if (segmentMatch) {
-          console.log(`   ✅ Using BASE entry (segment matches): "${entry.title}"`);
           processedEntries.push(entry);
-        } else {
-          console.log(`   ❌ Skipping: No matching variant and base segment doesn't match`);
         }
       } else {
-        // Multi-team module: use standard filtering
         const segmentMatch = targetSegments.length > 0 && taxonomyIncludes(targetSegments, userSegmentTerm);
-        
         if (teamMatch && segmentMatch) {
-          console.log(`🔍 Including multi-team module: "${entry.title}"`);
           processedEntries.push(entry);
-        } else {
-          console.log(`🔍 Skipping "${entry.title}": segment doesn't match (${JSON.stringify(targetSegments)} vs ${userSegmentTerm})`);
         }
       }
     }
-
-    console.log(`📊 Processed ${processedEntries.length} modules after variant resolution`);
 
     const modules = processedEntries.map(entry => {
       // Parse quiz item IDs from the module
@@ -678,7 +595,7 @@ export async function getCsModules(userTeam: Team, userSegment: UserSegment): Pr
       const targetTeamTerms = entry.team_taxonomy || safeJsonParse<string[]>(entry.target_teams, []);
       
       // Convert taxonomy terms to app values (preserve case or map)
-      const targetSegments = targetSegmentTerms.map(s => {
+      const targetSegments = targetSegmentTerms.map((s: string) => {
         // Handle both lowercase UIDs and Title case display names
         const upperS = s.toUpperCase().replace(/\s+/g, '_');
         if (upperS === 'ROOKIE' || s === 'Rookie') return 'ROOKIE';
@@ -687,7 +604,7 @@ export async function getCsModules(userTeam: Team, userSegment: UserSegment): Pr
         return s.toUpperCase() as UserSegment;
       }) as UserSegment[];
       
-      const targetTeams = targetTeamTerms.map(t => {
+      const targetTeams = targetTeamTerms.map((t: string) => {
         // Exact match for known teams
         if (t === 'Launch') return 'Launch';
         if (t === 'Data & Insights') return 'Data & Insights';
@@ -722,11 +639,8 @@ export async function getCsModules(userTeam: Team, userSegment: UserSegment): Pr
       };
     });
     
-    console.log(`✅ Returning ${modules.length} modules for ${userTeam}/${userSegment}:`, modules.map(m => `${m.title} (${m.id})`));
-    
     return modules;
   } catch (error) {
-    console.error('Error fetching modules from Contentstack:', error);
     return [];
   }
 }
@@ -757,6 +671,7 @@ export async function getCsQuizItems(): Promise<{ [key: string]: QuizQuestion[] 
       const options = safeJsonParse<string[]>(entry.answer_options, []);
       
       const quizQuestion: QuizQuestion = {
+        id: entry.uid,
         question: entry.question,
         options: options,
         correctAnswer: entry.correct_answer,

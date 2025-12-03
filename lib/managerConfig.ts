@@ -47,26 +47,18 @@ export function notifyManager(
   userName: string
 ): void {
   const manager = getManagerForTeam(team);
-  
-  if (!manager) {
-    console.error(`No manager found for team: ${team}`);
-    return;
-  }
+  if (!manager) return;
 
+  // Generate email content (ready for production email service)
   const emailContent = generateEmailContent(notificationType, userName, team, manager);
   
-  // Simulate email sending (console log for now)
-  console.log('📧 [SIMULATED EMAIL]');
-  console.log('═══════════════════════════════════════');
-  console.log(`To: ${manager.managerEmail}`);
-  console.log(`Manager: ${manager.managerName}`);
-  console.log(`Subject: ${emailContent.subject}`);
-  console.log('───────────────────────────────────────');
-  console.log(emailContent.body);
-  console.log('═══════════════════════════════════════\n');
-
-  // TODO: In production, replace with actual email service
-  // Example: sendEmail(manager.managerEmail, emailContent.subject, emailContent.body);
+  // In production, send actual email:
+  // sendEmail(manager.managerEmail, emailContent.subject, emailContent.body);
+  
+  // For now, just log to server (not browser console)
+  if (typeof window === 'undefined') {
+    console.log(`[Email] To: ${manager.managerEmail}, Subject: ${emailContent.subject}`);
+  }
 }
 
 /**
@@ -133,19 +125,9 @@ SkillStream QA Training Platform
  */
 export function updateManager(team: Team, managerName: string, managerEmail: string): boolean {
   const index = MANAGER_CONFIG.findIndex(config => config.team === team);
-  
-  if (index === -1) {
-    console.error(`Team not found: ${team}`);
-    return false;
-  }
+  if (index === -1) return false;
 
-  MANAGER_CONFIG[index] = {
-    team,
-    managerName,
-    managerEmail
-  };
-
-  console.log(`✅ Updated manager for ${team}: ${managerName} (${managerEmail})`);
+  MANAGER_CONFIG[index] = { team, managerName, managerEmail };
   return true;
 }
 
