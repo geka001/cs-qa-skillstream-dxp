@@ -1,0 +1,239 @@
+'use client';
+
+import { useState } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { 
+  CheckCircle2, 
+  AlertTriangle, 
+  Clock, 
+  TrendingUp,
+  Eye,
+  Trophy,
+  BookOpen
+} from 'lucide-react';
+import { UserProfile } from '@/types';
+import { formatLastActivity } from '@/lib/managerAuth';
+import { getPersonalizedContent } from '@/data/mockData';
+import { calculateOnboardingRequirements } from '@/lib/onboarding';
+
+interface UserListProps {
+  users: (UserProfile & { lastModified: Date; storageKey: string })[];
+  onViewDetails: (user: UserProfile) => void;
+}
+
+export default function UserList({ users, onViewDetails }: UserListProps) {
+  const [sortBy, setSortBy] = useState<'name' | 'progress' | 'activity'>('activity');
+
+  if (users.length === 0) {
+    return (
+      <Card className="p-12 text-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+            <BookOpen className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-lg mb-2">No Team Members Yet</h3>
+            <p className="text-muted-foreground text-sm">
+              Users from this team will appear here once they start their onboarding.
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  // Sort users
+  const sortedUsers = [...users].sort((a, b) => {
+    if (sortBy === 'name') {
+      return a.name.localeCompare(b.name);
+    } else if (sortBy === 'progress') {
+      const aProgress = (a.completedModules?.length || 0);
+      const bProgress = (b.completedModules?.length || 0);
+      return bProgress - aProgress;
+    } else {
+      return new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime();
+    }
+  });
+
+  const getSegmentStyle = (segment: string) => {
+    switch (segment) {
+      case 'ROOKIE':
+        return { bg: 'bg-blue-50 dark:bg-blue-950', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-200 dark:border-blue-800' };
+      case 'AT_RISK':
+        return { bg: 'bg-red-50 dark:bg-red-950', text: 'text-red-700 dark:text-red-300', border: 'border-red-200 dark:border-red-800' };
+      case 'HIGH_FLYER':
+        return { bg: 'bg-green-50 dark:bg-green-950', text: 'text-green-700 dark:text-green-300', border: 'border-green-200 dark:border-green-800' };
+      default:
+        return { bg: 'bg-gray-50 dark:bg-gray-950', text: 'text-gray-700 dark:text-gray-300', border: 'border-gray-200 dark:border-gray-800' };
+    }
+  };
+
+  const getSegmentIcon = (segment: string) => {
+    switch (segment) {
+      case 'AT_RISK':
+        return <AlertTriangle className="w-4 h-4" />;
+      case 'HIGH_FLYER':
+        return <Trophy className="w-4 h-4" />;
+      default:
+        return <TrendingUp className="w-4 h-4" />;
+    }
+  };
+
+  const calculateCompletion = (user: UserProfile) => {
+    // Use the same logic as QA dashboard: calculate based on actual available modules
+    // This will match what the user sees in their own dashboard
+    const personalizedContent = getPersonalizedContent(user.segment, user.completedModules, user.team);
+    const totalModules = personalizedContent.modules.length;
+    const completedCount = user.completedModules?.length || 0;
+    
+    if (totalModules === 0) return 0;
+    return Math.round((completedCount / totalModules) * 100);
+  };
+
+  const calculateAverageScore = (user: UserProfile) => {
+    const scores = Object.values(user.quizScores || {});
+    if (scores.length === 0) return 0;
+    return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Sort Controls */}
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-muted-foreground">Sort by:</span>
+        <Button
+          variant={sortBy === 'activity' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setSortBy('activity')}
+        >
+          Recent Activity
+        </Button>
+        <Button
+          variant={sortBy === 'progress' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setSortBy('progress')}
+        >
+          Progress
+        </Button>
+        <Button
+          variant={sortBy === 'name' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setSortBy('name')}
+        >
+          Name
+        </Button>
+      </div>
+
+      {/* User Cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {sortedUsers.map((user) => {
+          const segmentStyle = getSegmentStyle(user.segment);
+          const completion = calculateCompletion(user);
+          const avgScore = calculateAverageScore(user);
+          const onboardingReqs = calculateOnboardingRequirements(user);
+          const SegmentIcon = () => getSegmentIcon(user.segment);
+
+          return (
+            <Card key={user.storageKey} className={`hover:shadow-lg transition-shadow border-l-4 ${segmentStyle.border}`}>
+              <CardContent className="p-6">
+                <div className="space-y-4">
+                  {/* Header */}
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-3 flex-1">
+                      <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-white font-semibold text-lg">
+                        {user.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-lg">{user.name}</h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline" className="text-xs">
+                            {user.team}
+                          </Badge>
+                          <Badge 
+                            className={`text-xs ${segmentStyle.bg} ${segmentStyle.text} border-0`}
+                          >
+                            <SegmentIcon />
+                            <span className="ml-1">{user.segment}</span>
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                    {onboardingReqs.overallComplete ? (
+                      <Badge className="bg-green-500">
+                        <CheckCircle2 className="w-3 h-3 mr-1" />
+                        Complete
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs">
+                        {Math.round(onboardingReqs.overallPercentage)}% Done
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Onboarding Progress */}
+                  <div className="space-y-2 bg-amber-50 dark:bg-amber-950 p-3 rounded-lg border border-amber-200 dark:border-amber-800">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium text-amber-900 dark:text-amber-100">Onboarding Progress</span>
+                      <span className="font-semibold text-amber-700 dark:text-amber-300">{Math.round(onboardingReqs.overallPercentage)}%</span>
+                    </div>
+                    <Progress value={onboardingReqs.overallPercentage} className="h-2" />
+                    <div className="text-xs text-amber-700 dark:text-amber-300">
+                      Mandatory: {onboardingReqs.modules.completed}/{onboardingReqs.modules.required} modules • {onboardingReqs.sops.completed}/{onboardingReqs.sops.required} SOPs • {onboardingReqs.tools.completed}/{onboardingReqs.tools.required} tools
+                    </div>
+                  </div>
+
+                  {/* Overall Progress */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Overall Progress</span>
+                      <span className="font-semibold">{completion}%</span>
+                    </div>
+                    <Progress value={completion} className="h-2" />
+                  </div>
+
+                  {/* Stats */}
+                  <div className="grid grid-cols-3 gap-4 pt-2 border-t">
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-primary">
+                        {user.completedModules?.length || 0}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Modules</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-primary">{avgScore}%</div>
+                      <div className="text-xs text-muted-foreground">Avg Score</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-primary">{user.timeSpent || 0}m</div>
+                      <div className="text-xs text-muted-foreground">Time</div>
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="w-3 h-3" />
+                      <span>{formatLastActivity(user.lastModified)}</span>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onViewDetails(user)}
+                    >
+                      <Eye className="w-4 h-4 mr-1" />
+                      View Details
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
