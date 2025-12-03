@@ -303,123 +303,6 @@ export const mockModules: Module[] = [
     prerequisites: ['mod-insights-001']
   },
 
-  // ========== VISUAL BUILDER TEAM MODULES ==========
-  {
-    id: 'mod-vb-001',
-    title: 'Introduction to Visual Builder',
-    category: 'Product Knowledge',
-    difficulty: 'beginner',
-    content: `
-      <h2>Introduction to Contentstack Visual Builder</h2>
-      <p>Visual Builder is a WYSIWYG experience composer that enables marketers to build and preview pages visually without code.</p>
-      
-      <h3>What is Visual Builder?</h3>
-      <p>Visual Builder allows teams to:</p>
-      <ul>
-        <li><strong>Drag-and-Drop:</strong> Build pages with intuitive visual interface</li>
-        <li><strong>Live Preview:</strong> See changes in real-time</li>
-        <li><strong>Component Library:</strong> Reusable, pre-built components</li>
-        <li><strong>Responsive Design:</strong> Preview across devices</li>
-        <li><strong>Version Control:</strong> Track and revert changes</li>
-      </ul>
-      
-      <h3>Key QA Focus Areas:</h3>
-      <ul>
-        <li>Component rendering accuracy</li>
-        <li>Drag-and-drop functionality</li>
-        <li>Live preview synchronization</li>
-        <li>Responsive behavior across breakpoints</li>
-        <li>Visual regression testing</li>
-        <li>Browser compatibility</li>
-        <li>Performance with complex pages</li>
-      </ul>
-    `,
-    videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    quiz: [
-      {
-        id: 'q1',
-        question: 'What does WYSIWYG stand for?',
-        options: [
-          'Where You See Is Where You Go',
-          'What You See Is What You Get',
-          'When You Save It Works You Get',
-          'Why You Should Invest With You Guys'
-        ],
-        correctAnswer: 1,
-        explanation: 'WYSIWYG stands for "What You See Is What You Get" - a visual editing approach where the editing view matches the final output.'
-      }
-    ],
-    tags: ['visual-builder', 'wysiwyg', 'product-knowledge'],
-    estimatedTime: 30,
-    targetSegments: ['ROOKIE'],
-    targetTeams: ['Visual Builder'],
-    mandatory: true,
-    order: 1,
-    prerequisites: []
-  },
-
-  {
-    id: 'mod-vb-002',
-    title: 'Visual Regression Testing',
-    category: 'Testing Strategy',
-    difficulty: 'intermediate',
-    content: `
-      <h2>Visual Regression Testing for Visual Builder</h2>
-      <p>Master visual regression testing techniques to catch unintended UI changes and ensure consistent rendering.</p>
-      
-      <h3>What is Visual Regression Testing?</h3>
-      <p>Visual regression testing compares screenshots of your UI against baseline images to detect unintended visual changes.</p>
-      
-      <h3>Testing Workflow:</h3>
-      <ol>
-        <li><strong>Baseline Creation:</strong> Capture screenshots of approved UI state</li>
-        <li><strong>Change Detection:</strong> Run tests after code/content changes</li>
-        <li><strong>Comparison:</strong> Automated pixel-by-pixel comparison</li>
-        <li><strong>Review:</strong> Inspect and approve/reject differences</li>
-        <li><strong>Update Baseline:</strong> Accept intentional changes</li>
-      </ol>
-      
-      <h3>Tools & Techniques:</h3>
-      <ul>
-        <li>Percy, Chromatic, or Playwright's screenshot comparison</li>
-        <li>Testing across browsers and devices</li>
-        <li>Handling dynamic content (dates, random data)</li>
-        <li>Ignoring regions (ads, timestamps)</li>
-      </ul>
-      
-      <h3>Key Testing Areas:</h3>
-      <ul>
-        <li>Component alignment and spacing</li>
-        <li>Typography and font rendering</li>
-        <li>Colors and theming</li>
-        <li>Responsive breakpoints</li>
-        <li>Hover and interaction states</li>
-      </ul>
-    `,
-    videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    quiz: [
-      {
-        id: 'q1',
-        question: 'What is the primary benefit of visual regression testing?',
-        options: [
-          'Faster test execution',
-          'Catching unintended visual changes automatically',
-          'Reducing test code',
-          'Improving SEO'
-        ],
-        correctAnswer: 1,
-        explanation: 'Visual regression testing automatically detects unintended UI changes that might be missed by traditional functional tests.'
-      }
-    ],
-    tags: ['visual-builder', 'visual-regression', 'testing-tools'],
-    estimatedTime: 50,
-    targetSegments: ['ROOKIE', 'HIGH_FLYER'],
-    targetTeams: ['Visual Builder'],
-    mandatory: true,
-    order: 2,
-    prerequisites: ['mod-vb-001']
-  },
-
   // ========== AUTODRAFT TEAM MODULES ==========
   {
     id: 'mod-autodraft-001',
@@ -1995,7 +1878,7 @@ export const mockTools: Tool[] = [
     integrations: ['GitHub Actions', 'Jenkins', 'Azure DevOps'],
     category: 'Automation',
     targetSegments: ['ROOKIE', 'HIGH_FLYER'],
-    targetTeams: ['Launch', 'Data & Insights', 'Visual Builder', 'AutoDraft', 'DAM'],
+    targetTeams: ['Launch', 'Data & Insights', 'AutoDraft', 'DAM'],
     isGeneric: false // Not shown on generic tools page
   },
   {
@@ -2017,7 +1900,7 @@ export const mockTools: Tool[] = [
     integrations: ['GitHub', 'Docker', 'Kubernetes'],
     category: 'CI/CD',
     targetSegments: ['ROOKIE', 'HIGH_FLYER'],
-    targetTeams: ['Launch', 'Data & Insights', 'Visual Builder', 'AutoDraft', 'DAM'], // High-level understanding for all
+    targetTeams: ['Launch', 'Data & Insights', 'AutoDraft', 'DAM'], // High-level understanding for all
     isGeneric: false
   },
   {
@@ -2028,7 +1911,7 @@ export const mockTools: Tool[] = [
     integrations: ['GitHub', 'Selenium', 'Docker', 'Jira', 'TestRail'],
     category: 'CI/CD',
     targetSegments: ['ROOKIE', 'HIGH_FLYER'],
-    targetTeams: ['Launch', 'Data & Insights', 'Visual Builder', 'AutoDraft', 'DAM'], // High-level understanding for all
+    targetTeams: ['Launch', 'Data & Insights', 'AutoDraft', 'DAM'], // High-level understanding for all
     isGeneric: false
   },
 
@@ -2041,7 +1924,7 @@ export const mockTools: Tool[] = [
     integrations: ['Playwright', 'Cypress', 'GitHub', 'CI/CD'],
     category: 'Visual Testing',
     targetSegments: ['HIGH_FLYER'],
-    targetTeams: ['Visual Builder', 'Launch'],
+    targetTeams: ['Launch'],
     isGeneric: false
   },
   {
@@ -2052,7 +1935,7 @@ export const mockTools: Tool[] = [
     integrations: ['Chrome DevTools', 'CI/CD', 'Node.js'],
     category: 'Performance',
     targetSegments: ['HIGH_FLYER'],
-    targetTeams: ['Launch', 'Visual Builder'],
+    targetTeams: ['Launch'],
     isGeneric: false
   }
 ];
@@ -2081,26 +1964,32 @@ function applySegmentLogic(
   
   // Apply segment-specific logic
   if (segment === 'AT_RISK') {
-    const allModules = modules.filter(m => 
-      m.targetSegments.includes('AT_RISK') || m.targetSegments.includes('ROOKIE')
+    // Get all AT_RISK remedial modules
+    const remedialModules = modules.filter(m => 
+      m.targetSegments.includes('AT_RISK') || 
+      m.category === 'Remedial' || 
+      m.category === 'At-Risk Support'
     );
     
-    const remedialModuleIds = allModules
-      .filter(m => m.category === 'Remedial' || m.category === 'At-Risk Support')
-      .map(m => m.id);
+    // Check if all remedial modules are completed
+    const allRemedialComplete = remedialModules.every(m => completedModules.includes(m.id));
     
-    processedModules = allModules.map(module => {
-      const isRemedial = module.category === 'Remedial' || module.category === 'At-Risk Support';
-      const isCompleted = completedModules.includes(module.id);
-      
-      if (!isRemedial && !isCompleted && remedialModuleIds.length > 0) {
-        return {
-          ...module,
-          prerequisites: [...(module.prerequisites || []), ...remedialModuleIds]
-        };
-      }
-      return module;
-    });
+    if (!allRemedialComplete) {
+      // Only show remedial modules + previously completed modules
+      // AT_RISK users must complete remedial content first
+      processedModules = modules.filter(m => {
+        const isRemedial = m.category === 'Remedial' || 
+                          m.category === 'At-Risk Support' || 
+                          m.targetSegments.includes('AT_RISK');
+        const wasCompleted = completedModules.includes(m.id);
+        return isRemedial || wasCompleted;
+      });
+    } else {
+      // All remedial complete - show all available content
+      processedModules = modules.filter(m => 
+        m.targetSegments.includes('AT_RISK') || m.targetSegments.includes('ROOKIE')
+      );
+    }
   } else if (segment === 'HIGH_FLYER') {
     processedModules = modules.filter(m => 
       m.targetSegments.includes('HIGH_FLYER') || 
@@ -2209,35 +2098,30 @@ export function getPersonalizedContent(
   
   // Content access rules based on segment
   if (segment === 'AT_RISK') {
-    // AT_RISK users see ROOKIE content + AT_RISK remedial content
-    // This ensures they don't lose access to foundational modules
-    const allModules = availableModules.filter(m => 
-      m.targetSegments.includes('AT_RISK') || m.targetSegments.includes('ROOKIE')
+    // Get all AT_RISK remedial modules
+    const remedialModules = availableModules.filter(m => 
+      (m.targetSegments.includes('AT_RISK') || m.category === 'Remedial' || m.category === 'At-Risk Support')
     );
     
-    // Get remedial module IDs
-    const remedialModuleIds = allModules
-      .filter(m => m.category === 'Remedial' || m.category === 'At-Risk Support')
-      .map(m => m.id);
+    // Check if all remedial modules are completed
+    const allRemedialComplete = remedialModules.every(m => completedModules.includes(m.id));
     
-    // Add remedial modules as prerequisites to non-remedial, non-completed modules
-    modules = allModules.map(module => {
-      const isRemedial = module.category === 'Remedial' || module.category === 'At-Risk Support';
-      const isCompleted = completedModules.includes(module.id);
-      
-      // Don't add prerequisites to remedial modules or already completed modules
-      if (!isRemedial && !isCompleted && remedialModuleIds.length > 0) {
-        // Non-remedial modules require all remedial modules to be completed first
-        return {
-          ...module,
-          prerequisites: [
-            ...(module.prerequisites || []),
-            ...remedialModuleIds
-          ]
-        };
-      }
-      return module;
-    });
+    if (!allRemedialComplete) {
+      // Only show remedial modules + previously completed modules
+      // AT_RISK users must complete remedial content first
+      modules = availableModules.filter(m => {
+        const isRemedial = m.category === 'Remedial' || m.category === 'At-Risk Support' || 
+                          m.targetSegments.includes('AT_RISK');
+        const wasCompleted = completedModules.includes(m.id);
+        return isRemedial || wasCompleted;
+      });
+    } else {
+      // All remedial complete - show ROOKIE content too
+      const allModules = availableModules.filter(m => 
+        m.targetSegments.includes('AT_RISK') || m.targetSegments.includes('ROOKIE')
+      );
+      modules = allModules;
+    }
   } else if (segment === 'HIGH_FLYER') {
     // HIGH_FLYER users see all content (they've mastered basics)
     modules = availableModules.filter(m => 

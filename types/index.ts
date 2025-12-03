@@ -2,7 +2,7 @@
 export type UserSegment = 'ROOKIE' | 'AT_RISK' | 'HIGH_FLYER';
 
 // Team types for Contentstack products
-export type Team = 'Launch' | 'Data & Insights' | 'Visual Builder' | 'AutoDraft' | 'DAM';
+export type Team = 'Launch' | 'Data & Insights' | 'AutoDraft' | 'DAM';
 
 // User profile interface
 export interface UserProfile {

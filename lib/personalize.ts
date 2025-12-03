@@ -46,22 +46,16 @@ export async function initializePersonalize(): Promise<boolean> {
   // Start initialization
   initializationPromise = (async () => {
     try {
-      console.log('🔄 Personalize: Initializing SDK (v1.0.9+ instance-based)...');
-      console.log(`   Project UID: ${PROJECT_UID}`);
-      
       // Dynamic import to avoid SSR issues
       const Personalize = (await import('@contentstack/personalize-edge-sdk')).default;
       
       // Initialize and store the SDK INSTANCE (not global namespace)
-      // As per v1.0.9 migration guide: const sdk = await Personalize.init('<project_uid>')
       personalizeInstance = await Personalize.init(PROJECT_UID);
-      
       isInitialized = true;
-      console.log('✅ Personalize: SDK instance created successfully');
       
       return personalizeInstance;
     } catch (error) {
-      console.error('❌ Personalize: Failed to initialize SDK:', error);
+      console.error('Personalize SDK initialization failed:', error);
       isInitialized = false;
       return null;
     }
@@ -106,61 +100,34 @@ export async function setPersonalizeAttributes(attributes: {
     // Get SDK instance
     const sdk = await getSDKInstance();
     if (!sdk) {
-      console.warn('⚠️ Personalize: SDK instance not available, skipping attribute set');
       return false;
     }
-
-    console.log('📊 Personalize: Setting user attributes:', attributes);
     
     // Use instance method: sdk.set() instead of Personalize.set()
     await sdk.set(attributes);
     
-    console.log('✅ Personalize: Attributes set successfully');
-    
     // IMPORTANT: Trigger impressions for analytics
     try {
-      console.log('📊 Personalize: Triggering variant evaluation for analytics...');
-      console.log('   Attributes sent:', JSON.stringify(attributes));
-      
-      // Small delay to ensure attributes are processed
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
       const variants = await sdk.getVariants();
-      console.log('✅ Personalize: Variant evaluation complete');
-      console.log('   Active variants:', JSON.stringify(variants, null, 2));
       
-      // Check if any variant matched
-      const hasMatch = Object.values(variants || {}).some(v => v !== null);
-    //   if (hasMatch) {
-    //     console.log('   ✅ At least one experience matched - impressions recorded!');
-    //   } else {
-    //     console.warn('   ⚠️ No experiences matched via getVariants()');
-      
-        // Try manually triggering impression for the known experience
-        // Experience "Launch High Flyer" has short UID "0"
-        if (attributes.QA_LEVEL === 'HIGH_FLYER' && attributes.TEAM_NAME === 'Launch') {
-          console.log('   🔄 Manually triggering impression for "Launch High Flyer" (shortUid: 0)...');
-          try {
-            await sdk.triggerImpression('0');
-            console.log('   ✅ Manual impression triggered for experience 0!');
-            console.log('   📡 Check Network tab for requests to personalize-edge.contentstack.com');
-          } catch (impError: any) {
-            console.warn('   ⚠️ Manual impression failed:', impError?.message || impError);
-          }
-        
-        
-        // Also try triggering for experience 9 if it exists
-        if (attributes.TEAM_NAME) {
-          try {
-            await sdk.triggerImpression('9');
-            console.log('   ✅ Manual impression triggered for experience 9!');
-          } catch (impError) {
-            // Silently ignore - experience 9 might not be relevant
-          }
+      // Trigger impressions for relevant experiences
+      if (attributes.QA_LEVEL === 'HIGH_FLYER' && attributes.TEAM_NAME === 'Launch') {
+        try {
+          await sdk.triggerImpression('0');
+        } catch {
+          // Silently ignore impression errors
         }
       }
-    } catch (variantError) {
-      console.warn('⚠️ Personalize: getVariants() failed:', variantError);
+      
+      if (attributes.TEAM_NAME) {
+        try {
+          await sdk.triggerImpression('9');
+        } catch {
+          // Silently ignore
+        }
+      }
+    } catch {
+      // Silently ignore variant errors
     }
     
     return true;
@@ -185,12 +152,9 @@ export async function triggerImpression(experienceShortUid: string): Promise<boo
     const sdk = await getSDKInstance();
     if (!sdk) return false;
 
-    console.log(`📊 Personalize: Triggering impression for "${experienceShortUid}"`);
     await sdk.triggerImpression(experienceShortUid);
-    console.log('✅ Personalize: Impression triggered');
     return true;
-  } catch (error) {
-    console.error('❌ Personalize: Failed to trigger impression:', error);
+  } catch {
     return false;
   }
 }
@@ -219,23 +183,17 @@ export async function trackEvent(
   try {
     const sdk = await getSDKInstance();
     if (!sdk) {
-      console.warn(`⚠️ Personalize: SDK not ready, skipping event "${eventName}"`);
       return false;
     }
-
-    console.log(`📊 Personalize: Tracking event "${eventName}"`, eventData || '');
     
     // Use instance method: sdk.triggerEvent()
     if (typeof sdk.triggerEvent === 'function') {
       await sdk.triggerEvent(eventName);
-      console.log(`✅ Personalize: Event "${eventName}" tracked successfully`);
       return true;
     }
     
-    console.warn('⚠️ Personalize: triggerEvent method not available');
     return false;
-  } catch (error) {
-    console.error(`❌ Personalize: Failed to track event "${eventName}":`, error);
+  } catch {
     return false;
   }
 }

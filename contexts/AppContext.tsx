@@ -8,6 +8,8 @@ import { getUserByNameAndTeam, createUser, updateUser } from '@/lib/userService'
 import { calculateOnboardingRequirements } from '@/lib/onboarding';
 import OnboardingCompleteModal from '@/components/modals/OnboardingCompleteModal';
 import { setPersonalizeAttributes, initializePersonalize, trackEvent } from '@/lib/personalize';
+import { notifyOnboardingComplete, notifyQuizFailure } from '@/lib/slackNotifications';
+import { getPersonalizedContent } from '@/data/mockData';
 
 interface AppContextType {
   user: UserProfile | null;
@@ -61,23 +63,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
     saveTimerRef.current = setTimeout(async () => {
       try {
-        console.log('💾 Auto-saving user to Contentstack...');
         await updateUser(updatedUser.name, updatedUser.team, updatedUser);
-        console.log('✅ User saved to Contentstack');
       } catch (error) {
-        console.error('❌ Failed to save user to Contentstack:', error);
+        console.error('Failed to save user:', error);
       }
     }, 2000); // 2 second debounce
   }, []);
 
   // Initialize Personalize SDK on app load
   useEffect(() => {
-    // Initialize Personalize SDK for analytics tracking
-    initializePersonalize().then((success) => {
-      if (success) {
-        console.log('📊 Personalize SDK ready for analytics');
-      }
-    });
+    initializePersonalize();
   }, []);
 
   // Remove localStorage save effects (now using Contentstack)
@@ -95,45 +90,107 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const existingUser = await getUserByNameAndTeam(newUser.name, newUser.team);
       
       if (existingUser) {
-        // Load existing user from Contentstack
-        console.log('✅ Loaded existing user from Contentstack');
-        setUserState(existingUser);
-        
         // Pre-populate cache by fetching personalized content
-        // This ensures calculateOnboardingRequirements has data available
         const { getPersonalizedContentAsync } = await import('@/data/mockData');
         await getPersonalizedContentAsync('ROOKIE', existingUser.completedModules, existingUser.team);
-        console.log('✅ Cache pre-populated for onboarding calculations');
+        
+        // Check if AT_RISK user should be promoted back to ROOKIE
+        let userToSet = existingUser;
+        if (existingUser.segment === 'AT_RISK') {
+          // Get all AT_RISK content (includes both AT_RISK and ROOKIE modules)
+          const atRiskContent = await getPersonalizedContentAsync('AT_RISK', existingUser.completedModules, existingUser.team);
+          
+          // Find remedial/at-risk support modules
+          const remedialModules = atRiskContent.modules.filter((m: any) => 
+            m.category === 'Remedial' || 
+            m.category === 'At-Risk Support' ||
+            m.targetSegments?.includes('AT_RISK')
+          );
+          
+          // Calculate average score
+          const scores = Object.values(existingUser.quizScores as Record<string, number>);
+          const avgScore = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+          
+          // Conditions to promote back to ROOKIE:
+          // 1. All mandatory modules for AT_RISK are completed
+          // 2. Average quiz score is >= 70%
+          const mandatoryModules = atRiskContent.modules.filter((m: any) => m.mandatory);
+          const allMandatoryComplete = mandatoryModules.every((m: any) => 
+            existingUser.completedModules.includes(m.id)
+          );
+          
+          // If remedial modules exist, they must also be completed
+          const allRemedialComplete = remedialModules.length === 0 || remedialModules.every((m: any) => 
+            existingUser.completedModules.includes(m.id)
+          );
+          
+          const hasPassingScore = avgScore >= 70;
+          
+          console.log('AT_RISK check:', {
+            mandatoryModules: mandatoryModules.length,
+            allMandatoryComplete,
+            remedialModules: remedialModules.length,
+            allRemedialComplete,
+            avgScore,
+            hasPassingScore
+          });
+          
+          if (allMandatoryComplete && allRemedialComplete && hasPassingScore) {
+            // Promote back to ROOKIE
+            userToSet = {
+              ...existingUser,
+              segment: 'ROOKIE' as UserSegment,
+              segmentHistory: [
+                ...(existingUser.segmentHistory || []),
+                { segment: 'ROOKIE' as UserSegment, date: new Date().toISOString() }
+              ]
+            };
+            // Save the updated segment to Contentstack
+            await updateUser(userToSet.name, userToSet.team, userToSet);
+            // Re-populate cache with ROOKIE content for the promoted user
+            await getPersonalizedContentAsync('ROOKIE', userToSet.completedModules, userToSet.team);
+            toast.success('🎉 Great progress! You\'re back on track!', {
+              description: 'You\'ve completed all required modules.'
+            });
+          }
+        }
+        
+        // Load existing user from Contentstack
+        setUserState(userToSet);
+        
+        // Pre-populate cache for the user's current segment
+        await getPersonalizedContentAsync(userToSet.segment, userToSet.completedModules, userToSet.team);
+        
+        // Check onboarding completion for returning user (after cache is populated)
+        setTimeout(() => checkOnboardingCompletionForUser(userToSet), 100);
         
         // Calculate proper analytics using onboarding requirements
-        const onboardingReqs = calculateOnboardingRequirements(existingUser);
-        const scores = Object.values(existingUser.quizScores);
+        const onboardingReqs = calculateOnboardingRequirements(userToSet);
+        const scores = Object.values(userToSet.quizScores);
         const avgScore = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
         setAnalytics({
           moduleCompletion: onboardingReqs.overallPercentage,
           averageQuizScore: avgScore,
-          timeSpent: existingUser.timeSpent,
+          timeSpent: userToSet.timeSpent,
           lastActivity: new Date().toISOString(),
-          segmentHistory: existingUser.segmentHistory || []
+          segmentHistory: userToSet.segmentHistory || []
         });
         
         // Send user attributes to Personalize for analytics tracking
-        if (existingUser.team) {
+        if (userToSet.team) {
           setPersonalizeAttributes({
-            QA_LEVEL: existingUser.segment,
-            TEAM_NAME: existingUser.team
+            QA_LEVEL: userToSet.segment,
+            TEAM_NAME: userToSet.team
           });
         }
       } else {
         // Create new user in Contentstack
-        console.log('✨ Creating new user in Contentstack');
         await createUser(newUser);
         setUserState(newUser);
         
-        // Pre-populate cache for new user too
+        // Pre-populate cache for new user
         const { getPersonalizedContentAsync } = await import('@/data/mockData');
         await getPersonalizedContentAsync('ROOKIE', [], newUser.team);
-        console.log('✅ Cache pre-populated for new user');
         
         setAnalytics({
           moduleCompletion: 0,
@@ -152,7 +209,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         }
       }
     } catch (error) {
-      console.error('❌ Error in setUser:', error);
+      console.error('Error in setUser:', error);
       // Fallback: set user locally even if Contentstack fails
       setUserState(newUser);
     } finally {
@@ -181,10 +238,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const refreshCacheForSegment = async () => {
       if (user && user.team) {
-        console.log(`🔄 Segment changed to ${user.segment}, refreshing Contentstack cache...`);
         const { getPersonalizedContentAsync } = await import('@/data/mockData');
         await getPersonalizedContentAsync(user.segment, user.completedModules, user.team);
-        console.log(`✅ Cache refreshed for ${user.segment}`);
       }
     };
     
@@ -234,6 +289,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       trackEvent('quiz_pass', { moduleId, score });
     } else if (score < 50) {
       trackEvent('quiz_fail', { moduleId, score });
+      
+      // Send Slack notification for quiz failure
+      // Get module title from cache/mockData
+      const content = getPersonalizedContent(user.segment, user.completedModules, user.team);
+      const failedModule = content.modules.find((m: any) => m.id === moduleId);
+      
+      notifyQuizFailure({
+        userName: user.name,
+        userTeam: user.team,
+        moduleTitle: failedModule?.title || moduleId,
+        score: Math.round(score)
+      });
     }
     
     // Check onboarding completion with updatedUser (not from state)
@@ -243,13 +310,43 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     // AT_RISK flow only applies to ROOKIE users (not HIGH_FLYER)
     if (score < 50 && updatedUser.segment === 'ROOKIE') {
       updateSegment('AT_RISK');
+    } else if (score >= 70 && updatedUser.segment === 'AT_RISK') {
+      // Check if all AT_RISK/remedial modules are completed - if so, promote back to ROOKIE
+      const content = getPersonalizedContent('AT_RISK', updatedUser.completedModules, user.team);
+      
+      // Find all remedial/AT_RISK specific modules
+      const remedialModules = content.modules.filter((m: any) => 
+        m.category === 'Remedial' || 
+        m.category === 'At-Risk Support' ||
+        (m.targetSegments && m.targetSegments.includes('AT_RISK') && !m.targetSegments.includes('ROOKIE'))
+      );
+      
+      // Find all mandatory modules for AT_RISK
+      const mandatoryModules = content.modules.filter((m: any) => m.mandatory);
+      
+      // Check completion
+      const allRemedialComplete = remedialModules.length === 0 || remedialModules.every((m: any) => 
+        updatedUser.completedModules.includes(m.id)
+      );
+      const allMandatoryComplete = mandatoryModules.every((m: any) => 
+        updatedUser.completedModules.includes(m.id)
+      );
+      
+      // Calculate average score
+      const allScores = Object.values(updatedUser.quizScores as Record<string, number>);
+      const avgScore = allScores.length > 0 ? allScores.reduce((a, b) => a + b, 0) / allScores.length : 0;
+      
+      if ((allRemedialComplete || allMandatoryComplete) && avgScore >= 70) {
+        // User has completed all required modules with passing score
+        updateSegment('ROOKIE');
+        toast.success('🎉 Great progress! You\'re back on track!', {
+          description: 'You\'ve completed all required modules. Keep up the good work!'
+        });
+      }
     } else if (score >= 90 && updatedUser.onboardingComplete && updatedUser.segment !== 'HIGH_FLYER') {
       // Only allow HIGH_FLYER after onboarding is complete
       updateSegment('HIGH_FLYER');
     }
-    
-    // Check onboarding completion
-    setTimeout(() => checkOnboardingCompletion(), 100);
   };
 
   const updateSegment = (segment: UserSegment) => {
@@ -357,13 +454,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const markSOPComplete = (sopId: string) => {
-    if (!user) {
-      console.log('❌ markSOPComplete: No user found');
-      return;
-    }
-
-    console.log('📋 markSOPComplete called for:', sopId);
-    console.log('📋 Current completedSOPs:', user.completedSOPs);
+    if (!user) return;
 
     // Ensure completedSOPs array exists
     const completedSOPs = user.completedSOPs || [];
@@ -373,14 +464,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       completedSOPs: [...new Set([...completedSOPs, sopId])],
       lastActivity: new Date().toISOString()
     };
-
-    console.log('📋 Updated completedSOPs:', updatedUser.completedSOPs);
     
     setUserState(updatedUser);
     debouncedSave(updatedUser); // Auto-save to Contentstack
     checkOnboardingCompletionForUser(updatedUser);
-    
-    console.log('✅ markSOPComplete: State updated and save triggered');
   };
 
   const markToolExplored = (toolId: string) => {
@@ -408,7 +495,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (!currentUser || currentUser.onboardingComplete) return;
 
     // Get personalized content for user's segment
-    const { modules: allModules, sops: allSOPs } = require('@/data/mockData').getPersonalizedContent(currentUser.segment, currentUser.completedModules, currentUser.team);
+    const { modules: allModules, sops: allSOPs } = getPersonalizedContent(currentUser.segment, currentUser.completedModules, currentUser.team);
     
     // Define requirements
     const mandatoryModules = allModules.filter((m: any) => m.mandatory);
@@ -457,6 +544,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         notifyManager(currentUser.team, 'onboarding_complete', currentUser.name);
         toast.success('🎉 Onboarding complete! You\'re now a High-Flyer!');
       }
+      
+      // Send Slack notification for onboarding completion
+      notifyOnboardingComplete({
+        userName: currentUser.name,
+        userTeam: currentUser.team,
+        avgScore: Math.round(avgScore),
+        completionDate: new Date().toISOString()
+      });
     }
   };
 

@@ -47,8 +47,10 @@ export default function ToolsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.team, user?.segment, isLoggedIn, router]);
 
-  const handleToolClick = (toolId: string) => {
+  const handleToolExplore = (toolId: string, docsLink: string) => {
+    // Only mark as explored when actually opening the documentation
     markToolExplored(toolId);
+    window.open(docsLink, '_blank');
   };
 
   if (!user) return null;
@@ -146,15 +148,12 @@ export default function ToolsPage() {
         {filteredTools.map((tool) => {
           const isExplored = user.exploredTools?.includes(tool.id) || false;
           return (
-            <div key={tool.id} onClick={() => handleToolClick(tool.id)} className="cursor-pointer">
-              <ToolCard tool={tool} />
-              {isExplored && (
-                <div className="mt-2 text-center">
-                  <Badge className="bg-green-500 text-xs">
-                    ✓ Explored
-                  </Badge>
-                </div>
-              )}
+            <div key={tool.id}>
+              <ToolCard 
+                tool={tool} 
+                isExplored={isExplored}
+                onExplore={() => handleToolExplore(tool.id, tool.docsLink)} 
+              />
             </div>
           );
         })}

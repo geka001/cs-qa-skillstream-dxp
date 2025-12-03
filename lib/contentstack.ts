@@ -391,13 +391,11 @@ export async function fetchTools(team?: Team, segment?: UserSegment): Promise<To
       const targetTeams = targetTeamTerms.map(t => {
         if (t === 'Launch') return 'Launch';
         if (t === 'Data & Insights') return 'Data & Insights';
-        if (t === 'Visual Builder') return 'Visual Builder';
         if (t === 'AutoDraft') return 'AutoDraft';
         if (t === 'DAM') return 'DAM';
         const teamMap: Record<string, Team> = {
           'launch': 'Launch',
           'data_insights': 'Data & Insights',
-          'visual_builder': 'Visual Builder',
           'autodraft': 'AutoDraft',
           'dam': 'DAM'
         };
@@ -481,13 +479,11 @@ export async function fetchSOPs(team?: Team, segment?: UserSegment): Promise<SOP
       const targetTeams = targetTeamTerms.map(t => {
         if (t === 'Launch') return 'Launch';
         if (t === 'Data & Insights') return 'Data & Insights';
-        if (t === 'Visual Builder') return 'Visual Builder';
         if (t === 'AutoDraft') return 'AutoDraft';
         if (t === 'DAM') return 'DAM';
         const teamMap: Record<string, Team> = {
           'launch': 'Launch',
           'data_insights': 'Data & Insights',
-          'visual_builder': 'Visual Builder',
           'autodraft': 'AutoDraft',
           'dam': 'DAM'
         };
@@ -695,7 +691,6 @@ export async function getCsModules(userTeam: Team, userSegment: UserSegment): Pr
         // Exact match for known teams
         if (t === 'Launch') return 'Launch';
         if (t === 'Data & Insights') return 'Data & Insights';
-        if (t === 'Visual Builder') return 'Visual Builder';
         if (t === 'AutoDraft') return 'AutoDraft';
         if (t === 'DAM') return 'DAM';
         
@@ -703,7 +698,6 @@ export async function getCsModules(userTeam: Team, userSegment: UserSegment): Pr
         const teamMap: Record<string, Team> = {
           'launch': 'Launch',
           'data_insights': 'Data & Insights',
-          'visual_builder': 'Visual Builder',
           'autodraft': 'AutoDraft',
           'dam': 'DAM'
         };

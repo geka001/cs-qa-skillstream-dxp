@@ -102,12 +102,6 @@ export default function LoginPage() {
       color: 'bg-blue-500'
     },
     { 
-      value: 'Visual Builder', 
-      label: 'Visual Builder', 
-      description: 'Visual page builder and experience composer',
-      color: 'bg-green-500'
-    },
-    { 
       value: 'AutoDraft', 
       label: 'AutoDraft', 
       description: 'AI-powered content generation',

@@ -9,13 +9,40 @@ import { getPersonalizedContent } from '@/data/mockData';
  * Calculate onboarding requirements and progress
  */
 export function calculateOnboardingRequirements(user: UserProfile): OnboardingRequirements {
-  // IMPORTANT: Onboarding always counts ROOKIE mandatory content FOR USER'S TEAM
-  // Even if user is now HIGH_FLYER, we check if they completed ROOKIE onboarding
-  const { modules: rookieModules, sops: rookieSOPs } = getPersonalizedContent('ROOKIE', user.completedModules, user.team);
+  // Get content based on user's CURRENT segment
+  // For AT_RISK users, include both ROOKIE and AT_RISK (remedial) modules
+  const { modules: segmentModules, sops: segmentSOPs } = getPersonalizedContent(
+    user.segment === 'HIGH_FLYER' ? 'ROOKIE' : user.segment, // HIGH_FLYER checks ROOKIE requirements
+    user.completedModules, 
+    user.team
+  );
   
-  // Define what's required for ROOKIE onboarding
-  const mandatoryModules = rookieModules.filter(m => m.mandatory);
-  const mandatorySOPs = rookieSOPs.filter(s => s.mandatory);
+  // For AT_RISK, also get ROOKIE modules to ensure team-specific modules are included
+  let allModules = segmentModules;
+  let allSOPs = segmentSOPs;
+  
+  if (user.segment === 'AT_RISK') {
+    const { modules: rookieModules, sops: rookieSOPs } = getPersonalizedContent('ROOKIE', user.completedModules, user.team);
+    // Combine AT_RISK and ROOKIE modules (avoid duplicates)
+    const seenModuleIds = new Set(allModules.map(m => m.id));
+    rookieModules.forEach(m => {
+      if (!seenModuleIds.has(m.id)) {
+        allModules.push(m);
+        seenModuleIds.add(m.id);
+      }
+    });
+    const seenSopIds = new Set(allSOPs.map(s => s.id));
+    rookieSOPs.forEach(s => {
+      if (!seenSopIds.has(s.id)) {
+        allSOPs.push(s);
+        seenSopIds.add(s.id);
+      }
+    });
+  }
+  
+  // Define what's required for onboarding
+  const mandatoryModules = allModules.filter(m => m.mandatory);
+  const mandatorySOPs = allSOPs.filter(s => s.mandatory);
   const requiredToolsCount = 3; // Minimum tools to explore
   
   // Safety check: ensure arrays exist (for backwards compatibility)
@@ -128,8 +155,14 @@ export function getOnboardingStatusMessage(requirements: OnboardingRequirements)
     remaining.push('improve quiz scores');
   }
   
-  if (!requirements.notAtRisk) {
-    remaining.push('complete remedial modules');
+  // Only show "complete remedial modules" if there are actually incomplete requirements
+  // and user is AT_RISK with pending work
+  if (!requirements.notAtRisk && remaining.length === 0) {
+    // User has completed everything but is still AT_RISK
+    // This means they should be promoted soon
+    return '✨ Processing your progress...';
+  } else if (!requirements.notAtRisk) {
+    remaining.push('complete remedial modules to return to normal track');
   }
   
   if (remaining.length === 0) {

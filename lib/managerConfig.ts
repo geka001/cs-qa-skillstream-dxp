@@ -19,11 +19,6 @@ export const MANAGER_CONFIG: ManagerConfig[] = [
     managerEmail: 'mike.chen@contentstack.com'
   },
   {
-    team: 'Visual Builder',
-    managerName: 'Alex Kumar',
-    managerEmail: 'alex.kumar@contentstack.com'
-  },
-  {
     team: 'AutoDraft',
     managerName: 'Lisa Wong',
     managerEmail: 'lisa.wong@contentstack.com'

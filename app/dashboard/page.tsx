@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/contexts/AppContext';
 import { Module } from '@/types';
@@ -32,7 +32,9 @@ export default function DashboardPage() {
   const [selectedModule, setSelectedModule] = useState<Module | null>(null);
   const [showQuiz, setShowQuiz] = useState(false);
   const [personalizedModules, setPersonalizedModules] = useState<Module[]>([]);
-  const [lastNotifiedSegment, setLastNotifiedSegment] = useState<string | null>(null);
+  // Use ref to track if we've already shown notifications in this session
+  const hasShownSegmentToast = useRef(false);
+  const previousSegmentRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -49,33 +51,32 @@ export default function DashboardPage() {
         
         setPersonalizedModules(sorted);
 
-        // Show toast for segment changes ONLY once when segment actually changes
-        if (user.segment !== lastNotifiedSegment) {
-          if (user.segment === 'AT_RISK') {
+        // Show toast only when segment ACTUALLY changes during this session
+        // (not on initial load or page refresh)
+        if (previousSegmentRef.current !== null && previousSegmentRef.current !== user.segment) {
+          if (user.segment === 'AT_RISK' && !hasShownSegmentToast.current) {
             toast.error('Your manager has been notified about your learning progress', {
               description: 'Additional support resources have been prepared for you.',
               duration: 5000
             });
-            setLastNotifiedSegment('AT_RISK');
+            hasShownSegmentToast.current = true;
           } else if (user.segment === 'HIGH_FLYER') {
             toast.success('Congratulations! Advanced content unlocked', {
               description: 'You now have access to expert-level modules.',
               duration: 5000
             });
-            setLastNotifiedSegment('HIGH_FLYER');
-          } else if (user.segment === 'ROOKIE' && lastNotifiedSegment !== null) {
-            // Only show if user was previously in another segment
-            setLastNotifiedSegment('ROOKIE');
-          } else if (lastNotifiedSegment === null) {
-            // First load, don't show toast
-            setLastNotifiedSegment(user.segment);
+          } else if (user.segment === 'ROOKIE' && previousSegmentRef.current === 'AT_RISK') {
+            // User recovered from AT_RISK - toast already shown in AppContext
           }
         }
+        
+        // Update previous segment ref
+        previousSegmentRef.current = user.segment;
       }
     }
 
     loadContent();
-  }, [user, isLoggedIn, router, lastNotifiedSegment]);
+  }, [user, isLoggedIn, router]);
 
   const handleStartModule = (module: Module) => {
     // Track click event for Personalize analytics
@@ -134,6 +135,15 @@ export default function DashboardPage() {
   
   // Get next recommended module
   const nextRecommendedModule = getNextRecommendedModule(personalizedModules, completedModuleIds);
+  
+  // Check if there are remaining remedial modules (for AT_RISK users)
+  const remedialModules = personalizedModules.filter(m => 
+    m.category === 'Remedial' || m.category === 'At-Risk Support'
+  );
+  const incompleteRemedialModules = remedialModules.filter(m => 
+    !completedModuleIds.includes(m.id)
+  );
+  const hasRemainingRemedial = incompleteRemedialModules.length > 0;
 
   return (
     <div className="space-y-6">
@@ -161,7 +171,7 @@ export default function DashboardPage() {
       </motion.div>
 
       {/* Segment-specific cards */}
-      {user.segment === 'AT_RISK' && (
+      {user.segment === 'AT_RISK' && hasRemainingRemedial && (
         <InterventionCard onViewRemedial={handleViewRemedial} />
       )}
 

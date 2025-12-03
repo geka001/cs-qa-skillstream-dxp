@@ -4,14 +4,16 @@ import { Tool } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Wrench, ExternalLink, Boxes } from 'lucide-react';
+import { Wrench, ExternalLink, Boxes, CheckCircle2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface ToolCardProps {
   tool: Tool;
+  isExplored?: boolean;
+  onExplore?: () => void;
 }
 
-export default function ToolCard({ tool }: ToolCardProps) {
+export default function ToolCard({ tool, isExplored, onExplore }: ToolCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -53,14 +55,29 @@ export default function ToolCard({ tool }: ToolCardProps) {
               </div>
             )}
             
-            <Button 
-              className="w-full" 
-              variant="outline"
-              onClick={() => window.open(tool.docsLink, '_blank')}
-            >
-              <ExternalLink className="w-4 h-4 mr-2" />
-              View Documentation
-            </Button>
+            <div className="space-y-2">
+              <Button 
+                className="w-full" 
+                variant={isExplored ? "secondary" : "outline"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onExplore) {
+                    onExplore();
+                  } else {
+                    window.open(tool.docsLink, '_blank');
+                  }
+                }}
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                {isExplored ? 'View Again' : 'View Documentation'}
+              </Button>
+              {isExplored && (
+                <div className="flex items-center justify-center gap-1 text-green-600 text-sm">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Explored</span>
+                </div>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
