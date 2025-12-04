@@ -5,8 +5,8 @@
 
 import { Team } from '@/types';
 
-// Single password for all managers
-const MANAGER_PASSWORD = 'Test@123';
+// Manager password from environment variable with fallback
+const MANAGER_PASSWORD = process.env.NEXT_PUBLIC_MANAGER_PASSWORD || 'Test@123';
 
 /**
  * Validate manager credentials

@@ -1,31 +1,10 @@
 /**
  * Contentstack Service Layer
- * Handles all API calls to Contentstack Delivery API
+ * Handles all API calls to Contentstack Delivery API using the TypeScript Delivery SDK
  */
 
-import axios from 'axios';
+import { getStack, isSDKEnabled, isContentstackEnabled, isSDKConfigured, ContentstackConfig } from './contentstackSDK';
 import { Tool, SOP, Team, UserSegment, Module, QuizQuestion } from '@/types';
-
-// ============================================================
-// CONFIGURATION
-// ============================================================
-
-const CONFIG = {
-  apiKey: process.env.NEXT_PUBLIC_CONTENTSTACK_API_KEY || process.env.CONTENTSTACK_STACK_API_KEY,
-  deliveryToken: process.env.NEXT_PUBLIC_CONTENTSTACK_DELIVERY_TOKEN || process.env.CONTENTSTACK_DELIVERY_TOKEN,
-  environment: process.env.NEXT_PUBLIC_CONTENTSTACK_ENVIRONMENT || process.env.CONTENTSTACK_ENVIRONMENT || 'dev',
-  region: process.env.NEXT_PUBLIC_CONTENTSTACK_REGION || process.env.CONTENTSTACK_REGION || 'NA',
-  enabled: process.env.NEXT_PUBLIC_USE_CONTENTSTACK === 'true'
-};
-
-const REGIONS: Record<string, string> = {
-  NA: 'https://cdn.contentstack.io',
-  EU: 'https://eu-cdn.contentstack.com',
-  AZURE_NA: 'https://azure-na-cdn.contentstack.com',
-  AZURE_EU: 'https://azure-eu-cdn.contentstack.com'
-};
-
-const API_BASE = REGIONS[CONFIG.region] || REGIONS.NA;
 
 // ============================================================
 // HELPER FUNCTIONS
@@ -47,18 +26,8 @@ function safeJsonParse<T>(jsonString: string | null | undefined, defaultValue: T
 /**
  * Map app values to taxonomy term UIDs
  * Handles both lowercase UIDs and Title case display names from Contentstack
- * Examples:
- * - "ROOKIE" → "rookie" (or matches "Rookie")
- * - "Launch" → "launch" (or matches "Launch")
- * - "Data & Insights" → "data_insights" (or matches "Data & Insights")
- * - "AT_RISK" → "at_risk" (or matches "AT Risk")
  */
 function mapToTaxonomyTerm(value: string): string {
-  // Don't transform - return as-is
-  // Contentstack taxonomy can store either:
-  // - UIDs: "ROOKIE", "AT_RISK", "HIGH_FLYER"
-  // - Display names: "Rookie", "AT Risk", "High flyer"
-  // taxonomyIncludes() handles case-insensitive matching
   return value;
 }
 
@@ -68,12 +37,26 @@ function mapToTaxonomyTerm(value: string): string {
 function taxonomyIncludes(taxonomyArray: string[], searchValue: string): boolean {
   if (!taxonomyArray || taxonomyArray.length === 0) return false;
   
-  // Try exact match first
   if (taxonomyArray.includes(searchValue)) return true;
   
-  // Try case-insensitive match
   const searchLower = searchValue.toLowerCase();
   return taxonomyArray.some(term => term.toLowerCase() === searchLower);
+}
+
+/**
+ * Normalize segment value to standard format
+ * Handles various formats from Contentstack (Title case, lowercase, with spaces, etc.)
+ */
+function normalizeSegment(segment: string): UserSegment {
+  const normalized = segment.toUpperCase().replace(/\s+/g, '_');
+  
+  // Map common variations to standard segment names
+  if (normalized === 'ROOKIE' || normalized === 'ROOKIES') return 'ROOKIE';
+  if (normalized === 'AT_RISK' || normalized === 'ATRISK' || normalized === 'AT-RISK') return 'AT_RISK';
+  if (normalized === 'HIGH_FLYER' || normalized === 'HIGHFLYER' || normalized === 'HIGH-FLYER' || normalized === 'HIGH_FLYERS') return 'HIGH_FLYER';
+  
+  // Return as-is if no match (allows for future segment additions)
+  return normalized as UserSegment;
 }
 
 // ============================================================
@@ -82,14 +65,11 @@ function taxonomyIncludes(taxonomyArray: string[], searchValue: string): boolean
 
 /**
  * Check if an entry has a single team (potential variant candidate)
- * Single-team entries can have variants for different user segments
  */
 function hasSingleTeam(entry: { target_teams?: string; team_taxonomy?: string[] }): boolean {
-  // Check taxonomy field first
   if (Array.isArray(entry.team_taxonomy) && entry.team_taxonomy.length === 1) {
     return true;
   }
-  // Check legacy JSON field
   if (entry.target_teams) {
     try {
       const teams = JSON.parse(entry.target_teams);
@@ -122,11 +102,9 @@ function getTeamFromEntry(entry: { target_teams?: string; team_taxonomy?: string
 /**
  * Fetch variants for an entry from Management API
  * Uses API route to keep Management Token server-side
- * Returns array of variant entries with their segment info
  */
 async function fetchVariantsForEntry(entryUid: string): Promise<any[]> {
   try {
-    // Determine base URL for API route
     const isServer = typeof window === 'undefined';
     const baseUrl = isServer ? 'http://localhost:3000' : '';
     
@@ -146,7 +124,6 @@ async function fetchVariantsForEntry(entryUid: string): Promise<any[]> {
 
 /**
  * Find matching variant for user's segment
- * Returns the variant data if found, null otherwise
  */
 function findVariantForSegment(variants: any[], userSegment: UserSegment): any | null {
   if (!variants || variants.length === 0) return null;
@@ -180,7 +157,6 @@ function findVariantForSegment(variants: any[], userSegment: UserSegment): any |
 
 /**
  * Merge variant data into base entry
- * Variant only contains changed fields, so we merge with base entry
  */
 function mergeVariantIntoEntry(baseEntry: any, variant: any): any {
   if (!variant) return baseEntry;
@@ -222,37 +198,42 @@ function extractVariantContent(field: any, variantKey: string): string {
   return '';
 }
 
+// ============================================================
+// SDK-BASED FETCH FUNCTIONS
+// ============================================================
+
 /**
- * Make a request to Contentstack Delivery API
+ * Fetch entries from a content type using the SDK
  */
-async function fetchFromContentstack<T>(contentTypeUid: string, query: any = {}): Promise<T[]> {
-  if (!CONFIG.enabled) {
+async function fetchFromContentstack<T>(contentTypeUid: string, queryParams: Record<string, any> = {}): Promise<T[]> {
+  if (!isSDKEnabled()) {
     throw new Error('Contentstack is not enabled');
   }
 
-  if (!CONFIG.apiKey || !CONFIG.deliveryToken) {
-    console.error('Contentstack credentials missing');
+  const stack = getStack();
+  if (!stack) {
+    console.error('Contentstack SDK not initialized');
     throw new Error('Contentstack credentials not configured');
   }
 
   try {
-    const url = `${API_BASE}/v3/content_types/${contentTypeUid}/entries`;
+    const query = stack.contentType(contentTypeUid).entry();
     
-    const response = await axios({
-      method: 'GET',
-      url,
-      headers: {
-        'api_key': CONFIG.apiKey,
-        'access_token': CONFIG.deliveryToken,
-        'Content-Type': 'application/json'
-      },
-      params: {
-        environment: CONFIG.environment,
-        ...query
-      }
-    });
+    // Apply query parameters if provided
+    if (queryParams.query) {
+      const parsedQuery = typeof queryParams.query === 'string' 
+        ? JSON.parse(queryParams.query) 
+        : queryParams.query;
+      query.query(parsedQuery);
+    }
+    
+    // Apply limit if provided
+    if (queryParams.limit) {
+      query.limit(queryParams.limit);
+    }
 
-    return response.data.entries || [];
+    const result = await query.find<T>();
+    return (result as any).entries || [];
   } catch (error) {
     console.error(`Error fetching ${contentTypeUid} from Contentstack:`, error);
     throw error;
@@ -273,10 +254,17 @@ export interface ManagerConfigEntry {
 
 export async function fetchManagerConfig(team: Team): Promise<{ name: string; email: string } | null> {
   try {
-    const entries = await fetchFromContentstack<ManagerConfigEntry>('manager_config', {
-      query: JSON.stringify({ team })
-    });
+    const stack = getStack();
+    if (!stack) return null;
 
+    const result = await stack
+      .contentType('manager_config')
+      .entry()
+      .query({ team })
+      .find<ManagerConfigEntry>();
+
+    const entries = (result as any).entries || [];
+    
     if (entries.length > 0) {
       const config = entries[0];
       return {
@@ -303,48 +291,41 @@ interface ToolEntry {
   name: string;
   purpose: string;
   docs_link: string;
-  integrations: string; // JSON string
+  integrations: string;
   category: string;
-  segment_taxonomy?: string[]; // Taxonomy array
-  team_taxonomy?: string[]; // Taxonomy array
+  segment_taxonomy?: string[];
+  team_taxonomy?: string[];
   is_generic: boolean;
-  // Legacy fields (fallback)
-  target_segments?: string; // JSON string
-  target_teams?: string; // JSON string
+  target_segments?: string;
+  target_teams?: string;
 }
 
 export async function fetchTools(team?: Team, segment?: UserSegment): Promise<Tool[]> {
   try {
-    const entries = await fetchFromContentstack<ToolEntry>('qa_tool');
+    const stack = getStack();
+    if (!stack) {
+      throw new Error('Contentstack SDK not initialized');
+    }
 
-    return entries.map(entry => {
-      // Use taxonomy fields (primary) or fallback to JSON strings (legacy)
+    const result = await stack
+      .contentType('qa_tool')
+      .entry()
+      .find<ToolEntry>();
+
+    const entries = (result as any).entries || [];
+
+    return entries.map((entry: ToolEntry) => {
       const targetSegmentTerms = entry.segment_taxonomy || safeJsonParse<string[]>(entry.target_segments, []);
       const targetTeamTerms = entry.team_taxonomy || safeJsonParse<string[]>(entry.target_teams, []);
       const integrations = safeJsonParse<string[]>(entry.integrations, []);
       
-      // Convert taxonomy terms back to app values (handle both Title case and lowercase)
-      const targetSegments = targetSegmentTerms.map(s => {
-        const upperS = s.toUpperCase().replace(/\s+/g, '_');
-        if (upperS === 'ROOKIE' || s === 'Rookie') return 'ROOKIE';
-        if (upperS === 'AT_RISK' || s === 'AT Risk') return 'AT_RISK';
-        if (upperS === 'HIGH_FLYER' || s === 'High flyer') return 'HIGH_FLYER';
-        return s.toUpperCase() as UserSegment;
-      }) as UserSegment[];
+      // Normalize segment values (dynamic - no hardcoded mappings)
+      const targetSegments = targetSegmentTerms.map(s => 
+        normalizeSegment(s)
+      ) as UserSegment[];
       
-      const targetTeams = targetTeamTerms.map(t => {
-        if (t === 'Launch') return 'Launch';
-        if (t === 'Data & Insights') return 'Data & Insights';
-        if (t === 'AutoDraft') return 'AutoDraft';
-        if (t === 'DAM') return 'DAM';
-        const teamMap: Record<string, Team> = {
-          'launch': 'Launch',
-          'data_insights': 'Data & Insights',
-          'autodraft': 'AutoDraft',
-          'dam': 'DAM'
-        };
-        return teamMap[t.toLowerCase()] || t as Team;
-      }) as Team[];
+      // Use team names directly from Contentstack (no hardcoded mappings)
+      const targetTeams = targetTeamTerms as Team[];
 
       return {
         id: entry.tool_id,
@@ -357,15 +338,13 @@ export async function fetchTools(team?: Team, segment?: UserSegment): Promise<To
         targetTeams,
         isGeneric: entry.is_generic || false
       };
-    }).filter(tool => {
-      // Filter by team if provided
+    }).filter((tool: Tool) => {
       if (team && !tool.isGeneric && tool.targetTeams && tool.targetTeams.length > 0) {
         if (!tool.targetTeams.includes(team)) {
           return false;
         }
       }
 
-      // Filter by segment if provided
       if (segment && tool.targetSegments.length > 0) {
         if (!tool.targetSegments.includes(segment)) {
           return false;
@@ -390,49 +369,42 @@ interface SOPEntry {
   sop_id: string;
   criticality: 'critical' | 'high' | 'medium' | 'low';
   mandatory: boolean;
-  steps: string; // JSON string
-  related_tools: string; // JSON string
-  segment_taxonomy?: string[]; // Taxonomy array
-  team_taxonomy?: string[]; // Taxonomy array
-  // Legacy fields (fallback)
-  target_segments?: string; // JSON string
-  target_teams?: string; // JSON string
+  steps: string;
+  related_tools: string;
+  segment_taxonomy?: string[];
+  team_taxonomy?: string[];
+  target_segments?: string;
+  target_teams?: string;
 }
 
 export async function fetchSOPs(team?: Team, segment?: UserSegment): Promise<SOP[]> {
   try {
-    const entries = await fetchFromContentstack<SOPEntry>('qa_sop');
+    const stack = getStack();
+    if (!stack) {
+      throw new Error('Contentstack SDK not initialized');
+    }
 
-    return entries.map(entry => {
+    const result = await stack
+      .contentType('qa_sop')
+      .entry()
+      .find<SOPEntry>();
+
+    const entries = (result as any).entries || [];
+
+    return entries.map((entry: SOPEntry) => {
       const steps = safeJsonParse<string[]>(entry.steps, []);
       const relatedTools = safeJsonParse<string[]>(entry.related_tools, []);
       
-      // Use taxonomy fields (primary) or fallback to JSON strings (legacy)
       const targetSegmentTerms = entry.segment_taxonomy || safeJsonParse<string[]>(entry.target_segments, []);
       const targetTeamTerms = entry.team_taxonomy || safeJsonParse<string[]>(entry.target_teams, []);
       
-      // Convert taxonomy terms back to app values (handle both Title case and lowercase)
-      const targetSegments = targetSegmentTerms.map(s => {
-        const upperS = s.toUpperCase().replace(/\s+/g, '_');
-        if (upperS === 'ROOKIE' || s === 'Rookie') return 'ROOKIE';
-        if (upperS === 'AT_RISK' || s === 'AT Risk') return 'AT_RISK';
-        if (upperS === 'HIGH_FLYER' || s === 'High flyer') return 'HIGH_FLYER';
-        return s.toUpperCase() as UserSegment;
-      }) as UserSegment[];
+      // Normalize segment values (dynamic - no hardcoded mappings)
+      const targetSegments = targetSegmentTerms.map(s => 
+        normalizeSegment(s)
+      ) as UserSegment[];
       
-      const targetTeams = targetTeamTerms.map(t => {
-        if (t === 'Launch') return 'Launch';
-        if (t === 'Data & Insights') return 'Data & Insights';
-        if (t === 'AutoDraft') return 'AutoDraft';
-        if (t === 'DAM') return 'DAM';
-        const teamMap: Record<string, Team> = {
-          'launch': 'Launch',
-          'data_insights': 'Data & Insights',
-          'autodraft': 'AutoDraft',
-          'dam': 'DAM'
-        };
-        return teamMap[t.toLowerCase()] || t as Team;
-      }) as Team[];
+      // Use team names directly from Contentstack (no hardcoded mappings)
+      const targetTeams = targetTeamTerms as Team[];
 
       return {
         id: entry.sop_id,
@@ -444,15 +416,13 @@ export async function fetchSOPs(team?: Team, segment?: UserSegment): Promise<SOP
         targetSegments,
         targetTeams
       };
-    }).filter(sop => {
-      // Filter by team if provided
+    }).filter((sop: SOP) => {
       if (team && sop.targetTeams && sop.targetTeams.length > 0) {
         if (!sop.targetTeams.includes(team)) {
           return false;
         }
       }
 
-      // Filter by segment if provided
       if (segment && sop.targetSegments.length > 0) {
         if (!sop.targetSegments.includes(segment)) {
           return false;
@@ -473,7 +443,15 @@ export async function fetchSOPs(team?: Team, segment?: UserSegment): Promise<SOP
 
 export async function checkContentstackConnection(): Promise<boolean> {
   try {
-    await fetchFromContentstack('qa_tool', { limit: 1 });
+    const stack = getStack();
+    if (!stack) return false;
+
+    const result = await stack
+      .contentType('qa_tool')
+      .entry()
+      .limit(1)
+      .find();
+
     return true;
   } catch (error) {
     return false;
@@ -484,47 +462,66 @@ export async function checkContentstackConnection(): Promise<boolean> {
 // TRAINING MODULES
 // ============================================================
 
+interface ModuleEntry {
+  uid: string;
+  title: string;
+  module_id: string;
+  category: string;
+  content: string;
+  video_url?: string;
+  skill_level_taxonomy?: string[];
+  segment_taxonomy?: string[];
+  team_taxonomy?: string[];
+  estimated_time: number;
+  mandatory: boolean;
+  order: number;
+  prerequisites: string;
+  quiz_items: string;
+  module_tags: string;
+  difficulty?: string;
+  target_teams?: string;
+  target_segments?: string;
+}
+
+interface QuizEntry {
+  uid: string;
+  quiz_id: string;
+  question: string;
+  answer_options: string;
+  correct_answer: number;
+  explanation: string;
+}
+
 export async function getCsModules(userTeam: Team, userSegment: UserSegment): Promise<Module[]> {
-  if (!CONFIG.enabled) {
+  if (!isSDKEnabled()) {
+    return [];
+  }
+
+  const stack = getStack();
+  if (!stack) {
     return [];
   }
 
   try {
-    // Fetch modules
-    const entries = await fetchFromContentstack<{
-      uid: string;
-      title: string;
-      module_id: string;
-      category: string;
-      content: string;
-      video_url?: string;
-      skill_level_taxonomy?: string[];
-      segment_taxonomy?: string[];
-      team_taxonomy?: string[];
-      estimated_time: number;
-      mandatory: boolean;
-      order: number;
-      prerequisites: string;
-      quiz_items: string;
-      module_tags: string;
-      difficulty?: string;
-      target_teams?: string;
-      target_segments?: string;
-    }>('qa_training_module');
+    // Fetch modules using SDK
+    const moduleResult = await stack
+      .contentType('qa_training_module')
+      .entry()
+      .find<ModuleEntry>();
 
-    // Fetch ALL quiz items once
-    const quizEntries = await fetchFromContentstack<{
-      uid: string;
-      quiz_id: string;
-      question: string;
-      answer_options: string; // JSON string
-      correct_answer: number;
-      explanation: string;
-    }>('quiz_item');
+    const entries = (moduleResult as any).entries || [];
+
+    // Fetch ALL quiz items using SDK
+    const quizResult = await stack
+      .contentType('quiz_item')
+      .entry()
+      .find<QuizEntry>();
+
+    const quizEntries = (quizResult as any).entries || [];
     
     // Create a map of quiz_id -> QuizQuestion for fast lookup
     const quizMap: { [quizId: string]: QuizQuestion } = {};
-    quizEntries.forEach(entry => {
+    quizEntries.forEach((entry: QuizEntry) => {
       quizMap[entry.quiz_id] = {
         id: entry.quiz_id,
         question: entry.question,
@@ -534,11 +531,8 @@ export async function getCsModules(userTeam: Team, userSegment: UserSegment): Pr
       };
     });
 
-    // ============================================================
-    // VARIANT SUPPORT: Process entries with variant checking
-    // ============================================================
-    
-    const processedEntries: any[] = [];
+    // Process entries with variant checking
+    const processedEntries: ModuleEntry[] = [];
     
     for (const entry of entries) {
       const targetTeams = entry.team_taxonomy || safeJsonParse<string[]>(entry.target_teams, []);
@@ -546,11 +540,9 @@ export async function getCsModules(userTeam: Team, userSegment: UserSegment): Pr
       const userTeamTerm = mapToTaxonomyTerm(userTeam);
       const userSegmentTerm = mapToTaxonomyTerm(userSegment);
       
-      // Check if team matches
       const teamMatch = targetTeams.length > 0 && taxonomyIncludes(targetTeams, userTeamTerm);
       if (!teamMatch) continue;
       
-      // Check if this is a SINGLE-TEAM module (potential variant candidate)
       const isSingleTeam = hasSingleTeam(entry);
       
       if (isSingleTeam) {
@@ -578,53 +570,30 @@ export async function getCsModules(userTeam: Team, userSegment: UserSegment): Pr
     }
 
     const modules = processedEntries.map(entry => {
-      // Parse quiz item IDs from the module
       const quizItemIds = safeJsonParse<string[]>(entry.quiz_items, []);
       
-      // Map quiz item IDs to actual QuizQuestion objects
       const quiz = quizItemIds
         .map(quizId => quizMap[quizId])
-        .filter(q => q !== undefined); // Filter out any missing quiz items
+        .filter(q => q !== undefined);
       
-      // Get content (already resolved via variant merge if applicable)
       const content = entry.content || '';
       
-      // Use taxonomy fields (primary) or fallback to legacy fields
       const difficulty = (entry.skill_level_taxonomy?.[0] || entry.difficulty || 'beginner') as 'beginner' | 'intermediate' | 'advanced';
       const targetSegmentTerms = entry.segment_taxonomy || safeJsonParse<string[]>(entry.target_segments, []);
       const targetTeamTerms = entry.team_taxonomy || safeJsonParse<string[]>(entry.target_teams, []);
       
-      // Convert taxonomy terms to app values (preserve case or map)
-      const targetSegments = targetSegmentTerms.map((s: string) => {
-        // Handle both lowercase UIDs and Title case display names
-        const upperS = s.toUpperCase().replace(/\s+/g, '_');
-        if (upperS === 'ROOKIE' || s === 'Rookie') return 'ROOKIE';
-        if (upperS === 'AT_RISK' || s === 'AT Risk') return 'AT_RISK';
-        if (upperS === 'HIGH_FLYER' || s === 'High flyer') return 'HIGH_FLYER';
-        return s.toUpperCase() as UserSegment;
-      }) as UserSegment[];
+      // Normalize segment values (dynamic - no hardcoded mappings)
+      const targetSegments = targetSegmentTerms.map((s: string) => 
+        normalizeSegment(s)
+      ) as UserSegment[];
       
-      const targetTeams = targetTeamTerms.map((t: string) => {
-        // Exact match for known teams
-        if (t === 'Launch') return 'Launch';
-        if (t === 'Data & Insights') return 'Data & Insights';
-        if (t === 'AutoDraft') return 'AutoDraft';
-        if (t === 'DAM') return 'DAM';
-        
-        // Fallback: try lowercase UID mapping
-        const teamMap: Record<string, Team> = {
-          'launch': 'Launch',
-          'data_insights': 'Data & Insights',
-          'autodraft': 'AutoDraft',
-          'dam': 'DAM'
-        };
-        return teamMap[t.toLowerCase()] || t as Team;
-      }) as Team[];
+      // Use team names directly from Contentstack (no hardcoded mappings)
+      const targetTeams = targetTeamTerms as Team[];
       
       return {
         id: entry.module_id || entry.uid,
         title: entry.title,
-        content: content, // Extracted variant content
+        content: content,
         category: entry.category,
         videoUrl: entry.video_url || '',
         difficulty: difficulty,
@@ -632,7 +601,7 @@ export async function getCsModules(userTeam: Team, userSegment: UserSegment): Pr
         mandatory: entry.mandatory || false,
         order: entry.order || 0,
         prerequisites: safeJsonParse<string[]>(entry.prerequisites, []),
-        quiz: quiz, // Populated with actual quiz questions!
+        quiz: quiz,
         targetSegments: targetSegments,
         targetTeams: targetTeams,
         tags: safeJsonParse<string[]>(entry.module_tags, [])
@@ -641,6 +610,7 @@ export async function getCsModules(userTeam: Team, userSegment: UserSegment): Pr
     
     return modules;
   } catch (error) {
+    console.error('Error fetching modules from Contentstack:', error);
     return [];
   }
 }
@@ -650,24 +620,26 @@ export async function getCsModules(userTeam: Team, userSegment: UserSegment): Pr
 // ============================================================
 
 export async function getCsQuizItems(): Promise<{ [key: string]: QuizQuestion[] }> {
-  if (!CONFIG.enabled) {
+  if (!isSDKEnabled()) {
+    return {};
+  }
+
+  const stack = getStack();
+  if (!stack) {
     return {};
   }
 
   try {
-    const entries = await fetchFromContentstack<{
-      uid: string;
-      quiz_id: string;
-      question: string;
-      answer_options: string; // JSON string
-      correct_answer: number;
-      explanation: string;
-    }>('quiz_item');
+    const result = await stack
+      .contentType('quiz_item')
+      .entry()
+      .find<QuizEntry>();
 
-    // Group quiz items by quiz_id
+    const entries = (result as any).entries || [];
+
     const quizMap: { [key: string]: QuizQuestion[] } = {};
     
-    entries.forEach(entry => {
+    entries.forEach((entry: QuizEntry) => {
       const options = safeJsonParse<string[]>(entry.answer_options, []);
       
       const quizQuestion: QuizQuestion = {
@@ -696,6 +668,4 @@ export async function getCsQuizItems(): Promise<{ [key: string]: QuizQuestion[] 
 // EXPORT CONFIG
 // ============================================================
 
-export const isContentstackEnabled = CONFIG.enabled;
-
-export { CONFIG as ContentstackConfig };
+export { isContentstackEnabled, ContentstackConfig };

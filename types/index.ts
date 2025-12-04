@@ -14,6 +14,9 @@ export interface TeamConfig {
   managerEmail: string;
   isActive?: boolean;
   uid?: string;
+  // UI customization from Contentstack
+  color?: string;        // Tailwind class e.g., 'bg-purple-500' or hex color
+  icon?: string;         // Icon name or URL
 }
 
 // User profile interface

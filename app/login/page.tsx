@@ -11,20 +11,16 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { GraduationCap, Rocket, Layers, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
 import { validateManagerCredentials } from '@/lib/managerAuth';
-import { getLoginPageData, HeroBanner } from '@/lib/teamService';
+import { getLoginPageData, HeroBanner, StatsData } from '@/lib/teamService';
 
 type UserType = 'qa' | 'manager';
 
-// Team colors for visual distinction (with fallback for dynamic teams)
-const TEAM_COLORS: Record<string, string> = {
-  'Launch': 'bg-purple-500',
-  'Data & Insights': 'bg-blue-500',
-  'AutoDraft': 'bg-orange-500',
-  'DAM': 'bg-cyan-500',
-};
-
-// Dynamic color palette for teams not in the predefined list
-const DYNAMIC_COLORS = [
+// Dynamic color palette fallback for teams without a color defined in Contentstack
+const FALLBACK_COLORS = [
+  'bg-purple-500',
+  'bg-blue-500',
+  'bg-orange-500',
+  'bg-cyan-500',
   'bg-emerald-500',
   'bg-rose-500',
   'bg-amber-500',
@@ -49,12 +45,19 @@ export default function LoginPage() {
     heading: 'Get Started',
     description: 'Enter your details to begin your team-specific QA training',
   });
+  const [stats, setStats] = useState<StatsData>({
+    teamCountLabel: 'Product Teams',
+    moduleCountValue: '15+',
+    moduleCountLabel: 'Training Modules',
+    managerStatValue: 'Real-time',
+    managerStatLabel: 'Progress Tracking',
+  });
   const [pageLoading, setPageLoading] = useState(true);
   const { setUser, isLoading } = useApp();
   const { login: managerLogin } = useManager();
   const router = useRouter();
 
-  // Fetch login page data (hero banners + teams) from Contentstack on mount
+  // Fetch login page data (hero banners + teams + stats) from Contentstack on mount
   useEffect(() => {
     async function loadPageData() {
       setPageLoading(true);
@@ -63,6 +66,7 @@ export default function LoginPage() {
         setHeroBanner(pageData.heroBanner);
         setCardBanner(pageData.cardBanner);
         setTeams(pageData.teams);
+        setStats(pageData.stats);
         // Set default selection to first team
         if (pageData.teams.length > 0 && !selectedTeam) {
           setSelectedTeam(pageData.teams[0].team);
@@ -123,13 +127,28 @@ export default function LoginPage() {
     }
   };
 
-  // Get team color (with dynamic fallback)
-  const getTeamColor = (teamName: string, index: number) => {
-    if (TEAM_COLORS[teamName]) {
-      return TEAM_COLORS[teamName];
+  // Get team color from Contentstack or use fallback
+  const getTeamColor = (team: TeamConfig, index: number) => {
+    // Use color from Contentstack if available
+    if (team.color) {
+      // Support both Tailwind classes (bg-xxx-xxx) and hex colors (#xxx)
+      if (team.color.startsWith('bg-') || team.color.startsWith('#')) {
+        return team.color.startsWith('#') 
+          ? '' // For hex colors, we'll use inline style instead
+          : team.color;
+      }
+      return `bg-${team.color}`;
     }
-    // Use dynamic color based on index for new teams
-    return DYNAMIC_COLORS[index % DYNAMIC_COLORS.length];
+    // Fallback to dynamic color based on index
+    return FALLBACK_COLORS[index % FALLBACK_COLORS.length];
+  };
+
+  // Get hex color for inline styles (when color is a hex value)
+  const getTeamHexColor = (team: TeamConfig): string | undefined => {
+    if (team.color && team.color.startsWith('#')) {
+      return team.color;
+    }
+    return undefined;
   };
 
   // Get team description from API data or fallback
@@ -177,14 +196,14 @@ export default function LoginPage() {
           <div className="grid grid-cols-2 gap-4 pt-4">
             <div className="p-4 bg-card rounded-lg border">
               <div className="text-3xl font-bold text-primary">{teams.length || 4}</div>
-              <div className="text-sm text-muted-foreground">Product Teams</div>
+              <div className="text-sm text-muted-foreground">{stats.teamCountLabel}</div>
             </div>
             <div className="p-4 bg-card rounded-lg border">
               <div className="text-3xl font-bold text-primary">
-                {userType === 'qa' ? '15+' : 'Real-time'}
+                {userType === 'qa' ? stats.moduleCountValue : stats.managerStatValue}
               </div>
               <div className="text-sm text-muted-foreground">
-                {userType === 'qa' ? 'Training Modules' : 'Progress Tracking'}
+                {userType === 'qa' ? stats.moduleCountLabel : stats.managerStatLabel}
               </div>
             </div>
           </div>
@@ -278,33 +297,41 @@ export default function LoginPage() {
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {teams.map((team, index) => (
-                      <button
-                        key={team.uid || team.team}
-                        type="button"
-                        onClick={() => setSelectedTeam(team.team)}
-                        className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
-                          selectedTeam === team.team
-                            ? 'border-primary bg-primary/5'
-                            : 'border-border hover:border-primary/50'
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className={`w-4 h-4 rounded-full mt-1 ${getTeamColor(team.team, index)}`} />
-                          <div className="flex-1">
-                            <div className="font-semibold text-foreground">{team.displayName || team.team}</div>
-                            {userType === 'qa' && (
-                              <div className="text-sm text-muted-foreground">
-                                {getTeamDescription(team)}
-                              </div>
+                    {teams.map((team, index) => {
+                      const teamColor = getTeamColor(team, index);
+                      const hexColor = getTeamHexColor(team);
+                      
+                      return (
+                        <button
+                          key={team.uid || team.team}
+                          type="button"
+                          onClick={() => setSelectedTeam(team.team)}
+                          className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
+                            selectedTeam === team.team
+                              ? 'border-primary bg-primary/5'
+                              : 'border-border hover:border-primary/50'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div 
+                              className={`w-4 h-4 rounded-full mt-1 ${teamColor}`}
+                              style={hexColor ? { backgroundColor: hexColor } : undefined}
+                            />
+                            <div className="flex-1">
+                              <div className="font-semibold text-foreground">{team.displayName || team.team}</div>
+                              {userType === 'qa' && (
+                                <div className="text-sm text-muted-foreground">
+                                  {getTeamDescription(team)}
+                                </div>
+                              )}
+                            </div>
+                            {selectedTeam === team.team && (
+                              <div className="text-primary">✓</div>
                             )}
                           </div>
-                          {selectedTeam === team.team && (
-                            <div className="text-primary">✓</div>
-                          )}
-                        </div>
-                      </button>
-                    ))}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
