@@ -49,15 +49,16 @@ export async function getTeams(): Promise<TeamConfig[]> {
     });
 
     if (response.data.entries && response.data.entries.length > 0) {
-      teamsCache = response.data.entries.map((entry: any) => ({
+      const teams: TeamConfig[] = response.data.entries.map((entry: any) => ({
         team: entry.team,
         displayName: entry.team, // Use team name as display name
         managerName: entry.manager_name,
         managerEmail: entry.manager_email,
         isActive: true,
       }));
+      teamsCache = teams;
       cacheTimestamp = Date.now();
-      return teamsCache;
+      return teams;
     }
 
     return getDefaultTeams();
