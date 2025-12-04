@@ -20,6 +20,15 @@ let initializationPromise: Promise<any> | null = null;
 // Project UID from Contentstack Personalize
 const PROJECT_UID = '68a6ec844875734317267dcf';
 
+// Experience short UIDs for HIGH_FLYER personalization by team
+// These are the experience IDs from Contentstack Personalize
+const HIGH_FLYER_EXPERIENCES: Record<string, string> = {
+  'Launch': '9',
+  'DAM': 'c',
+  'Data & Insights': 'd',
+  'AutoDraft': 'e',
+};
+
 /**
  * Initialize Personalize SDK (client-side only)
  * Returns the SDK instance for method calls
@@ -108,28 +117,20 @@ export async function setPersonalizeAttributes(attributes: {
     // Use instance method: sdk.set() instead of Personalize.set()
     await sdk.set(attributes);
     
-    // IMPORTANT: Trigger impressions for analytics
-    try {
-      const variants = await sdk.getVariants();
-      
-      // Trigger impressions for relevant experiences
-      if (attributes.QA_LEVEL === 'HIGH_FLYER' && attributes.TEAM_NAME === 'Launch') {
+    // IMPORTANT: Trigger impressions for HIGH_FLYER analytics
+    // This triggers when:
+    // 1. User logs in as HIGH_FLYER (returning user)
+    // 2. User transitions from ROOKIE to HIGH_FLYER (promotion)
+    if (attributes.QA_LEVEL === 'HIGH_FLYER') {
+      const experienceUid = HIGH_FLYER_EXPERIENCES[attributes.TEAM_NAME];
+      if (experienceUid) {
         try {
-          await sdk.triggerImpression('0');
+          await sdk.triggerImpression(experienceUid);
+          console.log(`✅ Personalize: Triggered impression for ${attributes.TEAM_NAME} HIGH_FLYER (exp: ${experienceUid})`);
         } catch {
           // Silently ignore impression errors
         }
       }
-      
-      if (attributes.TEAM_NAME) {
-        try {
-          await sdk.triggerImpression('9');
-        } catch {
-          // Silently ignore
-        }
-      }
-    } catch {
-      // Silently ignore variant errors
     }
     
     return true;
