@@ -9,9 +9,11 @@ export type Team = string;
 export interface TeamConfig {
   team: string;
   displayName: string;
+  description?: string;
   managerName: string;
   managerEmail: string;
   isActive?: boolean;
+  uid?: string;
 }
 
 // User profile interface

@@ -11,11 +11,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { GraduationCap, Rocket, Layers, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
 import { validateManagerCredentials } from '@/lib/managerAuth';
-import { getTeams } from '@/lib/teamService';
+import { getLoginPageData, HeroBanner } from '@/lib/teamService';
 
 type UserType = 'qa' | 'manager';
 
-// Team colors for visual distinction
+// Team colors for visual distinction (with fallback for dynamic teams)
 const TEAM_COLORS: Record<string, string> = {
   'Launch': 'bg-purple-500',
   'Data & Insights': 'bg-blue-500',
@@ -23,13 +23,15 @@ const TEAM_COLORS: Record<string, string> = {
   'DAM': 'bg-cyan-500',
 };
 
-// Team descriptions
-const TEAM_DESCRIPTIONS: Record<string, string> = {
-  'Launch': 'Experience optimization and personalization platform',
-  'Data & Insights': 'Analytics and intelligence platform',
-  'AutoDraft': 'AI-powered content generation',
-  'DAM': 'Digital Asset Management system',
-};
+// Dynamic color palette for teams not in the predefined list
+const DYNAMIC_COLORS = [
+  'bg-emerald-500',
+  'bg-rose-500',
+  'bg-amber-500',
+  'bg-indigo-500',
+  'bg-teal-500',
+  'bg-pink-500',
+];
 
 export default function LoginPage() {
   const [userType, setUserType] = useState<UserType>('qa');
@@ -39,29 +41,39 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [teams, setTeams] = useState<TeamConfig[]>([]);
-  const [teamsLoading, setTeamsLoading] = useState(true);
+  const [heroBanner, setHeroBanner] = useState<HeroBanner>({
+    heading: 'Welcome to Your Product Team Training',
+    description: 'Get onboarded to your Contentstack product team with personalized QA training. Learn the tools, processes, and testing strategies specific to your product.',
+  });
+  const [cardBanner, setCardBanner] = useState<HeroBanner>({
+    heading: 'Get Started',
+    description: 'Enter your details to begin your team-specific QA training',
+  });
+  const [pageLoading, setPageLoading] = useState(true);
   const { setUser, isLoading } = useApp();
   const { login: managerLogin } = useManager();
   const router = useRouter();
 
-  // Fetch teams from Contentstack on mount
+  // Fetch login page data (hero banners + teams) from Contentstack on mount
   useEffect(() => {
-    async function loadTeams() {
-      setTeamsLoading(true);
+    async function loadPageData() {
+      setPageLoading(true);
       try {
-        const fetchedTeams = await getTeams();
-        setTeams(fetchedTeams);
+        const pageData = await getLoginPageData();
+        setHeroBanner(pageData.heroBanner);
+        setCardBanner(pageData.cardBanner);
+        setTeams(pageData.teams);
         // Set default selection to first team
-        if (fetchedTeams.length > 0 && !selectedTeam) {
-          setSelectedTeam(fetchedTeams[0].team);
+        if (pageData.teams.length > 0 && !selectedTeam) {
+          setSelectedTeam(pageData.teams[0].team);
         }
       } catch (error) {
-        // Teams will use fallback defaults
+        // Will use fallback defaults
       } finally {
-        setTeamsLoading(false);
+        setPageLoading(false);
       }
     }
-    loadTeams();
+    loadPageData();
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -111,14 +123,18 @@ export default function LoginPage() {
     }
   };
 
-  // Get team color (with fallback)
-  const getTeamColor = (teamName: string) => {
-    return TEAM_COLORS[teamName] || 'bg-gray-500';
+  // Get team color (with dynamic fallback)
+  const getTeamColor = (teamName: string, index: number) => {
+    if (TEAM_COLORS[teamName]) {
+      return TEAM_COLORS[teamName];
+    }
+    // Use dynamic color based on index for new teams
+    return DYNAMIC_COLORS[index % DYNAMIC_COLORS.length];
   };
 
-  // Get team description (with fallback)
-  const getTeamDescription = (teamName: string) => {
-    return TEAM_DESCRIPTIONS[teamName] || `${teamName} team`;
+  // Get team description from API data or fallback
+  const getTeamDescription = (team: TeamConfig) => {
+    return team.description || `${team.team} team`;
   };
 
   return (
@@ -146,13 +162,13 @@ export default function LoginPage() {
           <div className="space-y-4">
             <h2 className="text-3xl font-bold text-foreground">
               {userType === 'qa' 
-                ? 'Welcome to Your Product Team Training'
+                ? heroBanner.heading
                 : 'Monitor Your Team\'s Progress'
               }
             </h2>
             <p className="text-lg text-muted-foreground">
               {userType === 'qa'
-                ? 'Get onboarded to your Contentstack product team with personalized QA training. Learn the tools, processes, and testing strategies specific to your product.'
+                ? heroBanner.description
                 : 'View real-time onboarding progress, identify at-risk team members, and track completion rates across your QA team.'
               }
             </p>
@@ -179,11 +195,11 @@ export default function LoginPage() {
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl flex items-center gap-2">
               <Rocket className="w-6 h-6 text-primary" />
-              Get Started
+              {cardBanner.heading}
             </CardTitle>
             <CardDescription>
               {userType === 'qa'
-                ? 'Enter your details to begin your team-specific QA training'
+                ? cardBanner.description
                 : 'Select your team and enter credentials to view team progress'
               }
             </CardDescription>
@@ -255,16 +271,16 @@ export default function LoginPage() {
                   {userType === 'qa' ? 'Select Your Product Team' : 'Select Your Team'}
                 </label>
                 
-                {teamsLoading ? (
+                {pageLoading ? (
                   <div className="flex items-center justify-center p-8">
                     <Loader2 className="w-6 h-6 animate-spin text-primary" />
                     <span className="ml-2 text-muted-foreground">Loading teams...</span>
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {teams.map((team) => (
+                    {teams.map((team, index) => (
                       <button
-                        key={team.team}
+                        key={team.uid || team.team}
                         type="button"
                         onClick={() => setSelectedTeam(team.team)}
                         className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
@@ -274,12 +290,12 @@ export default function LoginPage() {
                         }`}
                       >
                         <div className="flex items-start gap-3">
-                          <div className={`w-4 h-4 rounded-full mt-1 ${getTeamColor(team.team)}`} />
+                          <div className={`w-4 h-4 rounded-full mt-1 ${getTeamColor(team.team, index)}`} />
                           <div className="flex-1">
-                            <div className="font-semibold text-foreground">{team.team}</div>
+                            <div className="font-semibold text-foreground">{team.displayName || team.team}</div>
                             {userType === 'qa' && (
                               <div className="text-sm text-muted-foreground">
-                                {getTeamDescription(team.team)}
+                                {getTeamDescription(team)}
                               </div>
                             )}
                           </div>
@@ -331,7 +347,7 @@ export default function LoginPage() {
                 type="submit" 
                 className="w-full" 
                 size="lg" 
-                disabled={isLoading || teamsLoading || !selectedTeam}
+                disabled={isLoading || pageLoading || !selectedTeam}
               >
                 {isLoading ? 'Loading...' : userType === 'qa' ? 'Start Learning' : 'Access Dashboard'}
               </Button>

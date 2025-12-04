@@ -26,6 +26,7 @@ import { Sparkles, TrendingUp, AlertCircle, BookOpen } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { trackEvent } from '@/lib/personalize';
+import { getDashboardPageContent, DashboardPageContent } from '@/lib/teamService';
 
 export default function DashboardPage() {
   const { user, completeModule, isLoggedIn } = useApp();
@@ -33,6 +34,12 @@ export default function DashboardPage() {
   const [selectedModule, setSelectedModule] = useState<Module | null>(null);
   const [showQuiz, setShowQuiz] = useState(false);
   const [personalizedModules, setPersonalizedModules] = useState<Module[]>([]);
+  const [pageContent, setPageContent] = useState<DashboardPageContent>({
+    welcomeHeading: 'Welcome',
+    modulesCompletedLabel: 'Modules Completed',
+    onboardingStatusLabel: 'Onboarding Status',
+    continueLearningHeading: 'Continue Learning',
+  });
   // Use ref to track if we've already shown notifications in this session
   const hasShownSegmentToast = useRef(false);
   const previousSegmentRef = useRef<string | null>(null);
@@ -45,6 +52,10 @@ export default function DashboardPage() {
 
     async function loadContent() {
       if (user) {
+        // Fetch page content from Contentstack
+        const dashboardContent = await getDashboardPageContent();
+        setPageContent(dashboardContent);
+
         const content = await getPersonalizedContentAsync(user.segment, user.completedModules, user.team);
         
         // Sort modules using prerequisites logic with completed modules and segment awareness
@@ -162,7 +173,7 @@ export default function DashboardPage() {
               <div>
                 <CardTitle className="text-2xl flex items-center gap-2">
                   <Sparkles className="w-6 h-6 text-primary" />
-                  Welcome, {user.name}!
+                  {pageContent.welcomeHeading}, {user.name}!
                 </CardTitle>
                 <p className="text-muted-foreground mt-2">{welcomeMessage}</p>
               </div>
@@ -192,7 +203,7 @@ export default function DashboardPage() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Modules Completed</p>
+                <p className="text-sm text-muted-foreground">{pageContent.modulesCompletedLabel}</p>
                 <p className="text-3xl font-bold text-primary">{completedModuleIds.length}</p>
               </div>
               <TrendingUp className="w-8 h-8 text-primary/50" />
@@ -241,7 +252,7 @@ export default function DashboardPage() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Onboarding Status</p>
+                <p className="text-sm text-muted-foreground">{pageContent.onboardingStatusLabel}</p>
                 <p className={`text-2xl font-bold ${onboardingReqs.overallComplete ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}`}>
                   {onboardingReqs.overallComplete ? 'Complete' : `${Math.round(onboardingReqs.overallPercentage)}%`}
                 </p>
@@ -262,7 +273,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold flex items-center gap-2">
               <BookOpen className="w-6 h-6 text-primary" />
-              Continue Learning
+              {pageContent.continueLearningHeading}
             </h2>
             <Button 
               variant="outline" 

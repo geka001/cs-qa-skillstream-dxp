@@ -27,6 +27,7 @@
     "cs:setup-all": "npm run cs:taxonomy && npm run cs:taxonomy-fields && npm run cs:taxonomy-tag && npm run cs:variants && npm run cs:variants-create && npm run cs:test"
   },
   "dependencies": {
+    "@contentstack/live-preview-utils": "^4.1.2",
     "@contentstack/personalize-edge-sdk": "^1.0.19",
     "autoprefixer": "^10.4.19",
     "axios": "^1.13.2",
