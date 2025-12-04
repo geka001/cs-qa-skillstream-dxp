@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/contexts/AppContext';
+import { getPersonalizedContent } from '@/data/mockData';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -14,9 +15,12 @@ import {
   AlertTriangle,
   CheckCircle2,
   BarChart3,
-  Activity
+  Activity,
+  BookOpen,
+  Trophy,
+  Star
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { motion } from 'framer-motion';
 
 export default function AnalyticsPage() {
@@ -39,48 +43,38 @@ export default function AnalyticsPage() {
 
   const currentSegmentColor = segmentColors[user.segment];
 
-  // Generate weekly progress from user's actual activity
-  // For now, we'll show aggregate data. In future, track daily activity.
-  const totalDays = Math.ceil(user.timeSpent / 60 / 8); // Assuming 8 hours of learning per day
-  const weeklyProgress = Array.from({ length: 7 }, (_, i) => {
-    const dayIndex = 6 - i; // Last 7 days (today = 0, yesterday = 1, etc.)
-    // Distribute completed modules across days
-    const modulesForDay = i < user.completedModules.length ? 1 : 0;
-    const timeForDay = modulesForDay > 0 ? Math.round(user.timeSpent / user.completedModules.length || 0) : 0;
-    const scoreForDay = modulesForDay > 0 ? Math.round(analytics.averageQuizScore) : 0;
-    
+  // Get personalized content for the user's segment - this includes ALL modules they have access to
+  const personalizedContent = getPersonalizedContent(user.segment, user.completedModules, user.team);
+  
+  // Total modules they can see
+  const totalAvailableModules = personalizedContent.modules.length;
+  // Modules they've completed
+  const totalCompletedModules = user.completedModules.length;
+  // Progress percentage
+  const moduleProgress = totalAvailableModules > 0 
+    ? Math.round((totalCompletedModules / totalAvailableModules) * 100) 
+    : 0;
+
+  // Quiz scores with module names
+  const quizScores = Object.entries(user.quizScores).map(([moduleId, score], index) => {
+    const module = personalizedContent.modules.find(m => m.id === moduleId);
     return {
-      day: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(Date.now() - dayIndex * 24 * 60 * 60 * 1000).getDay()],
-      modules: modulesForDay,
-      time: timeForDay,
-      score: scoreForDay
+      name: module ? module.title.substring(0, 15) + '...' : `Quiz ${index + 1}`,
+      score: score,
+      fullName: module?.title || moduleId
     };
-  }).reverse();
+  });
 
-  const quizScores = Object.entries(user.quizScores).map(([moduleId, score], index) => ({
-    name: `Module ${index + 1}`,
-    score: score
-  }));
+  // Calculate stats
+  const avgScore = quizScores.length > 0 
+    ? Math.round(quizScores.reduce((sum, q) => sum + q.score, 0) / quizScores.length)
+    : 0;
+  
+  const highestScore = quizScores.length > 0 
+    ? Math.max(...quizScores.map(q => q.score))
+    : 0;
 
-  // Get actual module count from onboarding requirements
-  const totalModulesRequired = 7; // This should come from onboarding requirements
-  const completionData = [
-    { name: 'Completed', value: user.completedModules.length, color: '#10b981' },
-    { name: 'Remaining', value: Math.max(0, totalModulesRequired - user.completedModules.length), color: '#e5e7eb' }
-  ];
-
-  // Calculate category progress from actual completed modules
-  // Group modules by category (you'll need to fetch this from modules data)
-  // For now, showing a simplified version
-  const completedCount = user.completedModules.length;
-  const categoryProgress = [
-    { 
-      category: 'Completed Modules', 
-      completed: completedCount, 
-      total: totalModulesRequired,
-      percentage: Math.round((completedCount / totalModulesRequired) * 100)
-    }
-  ];
+  const perfectScores = quizScores.filter(q => q.score >= 90).length;
 
   return (
     <div className="space-y-6">
@@ -96,10 +90,11 @@ export default function AnalyticsPage() {
               Learning Analytics
             </h1>
             <p className="text-muted-foreground mt-2">
-              Detailed insights into your learning journey
+              Your complete learning journey
             </p>
           </div>
           <Badge className={`text-lg px-4 py-2 ${currentSegmentColor.bg} ${currentSegmentColor.text}`}>
+            {user.segment === 'HIGH_FLYER' && <Trophy className="w-4 h-4 mr-1" />}
             {user.segment}
           </Badge>
         </div>
@@ -110,12 +105,12 @@ export default function AnalyticsPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between mb-2">
-              <CheckCircle2 className="w-8 h-8 text-green-500" />
+              <BookOpen className="w-8 h-8 text-blue-500" />
               <TrendingUp className="w-4 h-4 text-muted-foreground" />
             </div>
-            <div className="text-3xl font-bold">{user.completedModules.length}</div>
+            <div className="text-3xl font-bold">{totalCompletedModules}</div>
             <p className="text-sm text-muted-foreground">Modules Completed</p>
-            <Progress value={(user.completedModules.length / 7) * 100} className="mt-2 h-1" />
+            <p className="text-xs text-muted-foreground mt-1">of {totalAvailableModules} available</p>
           </CardContent>
         </Card>
 
@@ -125,9 +120,9 @@ export default function AnalyticsPage() {
               <Award className="w-8 h-8 text-primary" />
               <TrendingUp className="w-4 h-4 text-muted-foreground" />
             </div>
-            <div className="text-3xl font-bold">{Math.round(analytics.averageQuizScore)}%</div>
-            <p className="text-sm text-muted-foreground">Average Score</p>
-            <Progress value={analytics.averageQuizScore} className="mt-2 h-1" />
+            <div className="text-3xl font-bold">{avgScore}%</div>
+            <p className="text-sm text-muted-foreground">Average Quiz Score</p>
+            <p className="text-xs text-muted-foreground mt-1">Best: {highestScore}%</p>
           </CardContent>
         </Card>
 
@@ -143,87 +138,38 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={perfectScores > 0 ? "border-green-200 dark:border-green-800" : user.interventionsReceived > 0 ? "border-amber-200 dark:border-amber-800" : ""}>
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between mb-2">
-              <Target className="w-8 h-8 text-purple-500" />
-              {user.interventionsReceived > 0 && <AlertTriangle className="w-4 h-4 text-red-500" />}
-            </div>
-            <div className="text-3xl font-bold">{user.interventionsReceived}</div>
-            <p className="text-sm text-muted-foreground">Interventions</p>
-            <p className="text-xs text-muted-foreground mt-1">Support notifications sent</p>
+            {perfectScores > 0 ? (
+              <>
+                <div className="flex items-center justify-between mb-2">
+                  <Star className="w-8 h-8 text-yellow-500" />
+                  <Trophy className="w-4 h-4 text-yellow-500" />
+                </div>
+                <div className="text-3xl font-bold">{perfectScores}</div>
+                <p className="text-sm text-muted-foreground">Perfect Scores (90%+)</p>
+                <p className="text-xs text-muted-foreground mt-1">Keep up the excellence!</p>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-2">
+                  <AlertTriangle className={`w-8 h-8 ${user.interventionsReceived > 0 ? 'text-amber-500' : 'text-gray-300'}`} />
+                  {user.interventionsReceived > 0 && <Target className="w-4 h-4 text-amber-500" />}
+                </div>
+                <div className="text-3xl font-bold">{user.interventionsReceived}</div>
+                <p className="text-sm text-muted-foreground">Interventions</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {user.interventionsReceived > 0 ? 'Support provided' : 'No interventions needed'}
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Charts Row 1 */}
+      {/* Progress Summary */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Weekly Activity */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="w-5 h-5" />
-              Weekly Activity
-            </CardTitle>
-            <CardDescription>Your learning activity over the past week</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={weeklyProgress}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="day" tick={{ fontSize: 12 }} className="text-muted-foreground" />
-                <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" />
-                <Tooltip />
-                <Line type="monotone" dataKey="time" stroke="#3b82f6" strokeWidth={2} name="Minutes" />
-                <Line type="monotone" dataKey="modules" stroke="#10b981" strokeWidth={2} name="Modules" />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Module Completion */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Target className="w-5 h-5" />
-              Module Completion
-            </CardTitle>
-            <CardDescription>Overall progress through the curriculum</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-center">
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={completionData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {completionData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="text-center mt-4">
-              <div className="text-4xl font-bold text-primary">{Math.round(analytics.moduleCompletion)}%</div>
-              <p className="text-sm text-muted-foreground mt-1">
-                {user.completedModules.length} of 7 modules completed
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Charts Row 2 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Quiz Performance */}
+        {/* Quiz Performance Chart - only show if has scores */}
         {quizScores.length > 0 && (
           <Card>
             <CardHeader>
@@ -231,63 +177,125 @@ export default function AnalyticsPage() {
                 <Award className="w-5 h-5" />
                 Quiz Performance
               </CardTitle>
-              <CardDescription>Your scores across all completed quizzes</CardDescription>
+              <CardDescription>Your scores across {quizScores.length} completed quizzes</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={250}>
+              <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={quizScores}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="name" tick={{ fontSize: 12 }} className="text-muted-foreground" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10 }} className="text-muted-foreground" angle={-45} textAnchor="end" height={60} />
                   <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" domain={[0, 100]} />
-                  <Tooltip />
-                  <Bar dataKey="score" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
+                  <Tooltip 
+                    content={({ payload }) => {
+                      if (payload && payload.length > 0) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="bg-background border rounded-lg p-2 shadow-lg">
+                            <p className="font-medium text-sm">{data.fullName}</p>
+                            <p className="text-primary font-bold">{data.score}%</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar 
+                    dataKey="score" 
+                    fill="hsl(var(--primary))" 
+                    radius={[8, 8, 0, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
-              <div className="text-center mt-4">
-                <div className="text-3xl font-bold text-primary">{Math.round(analytics.averageQuizScore)}%</div>
-                <p className="text-sm text-muted-foreground">Average Score</p>
+              <div className="flex justify-around mt-4 pt-4 border-t">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-primary">{avgScore}%</div>
+                  <p className="text-xs text-muted-foreground">Average</p>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">{highestScore}%</div>
+                  <p className="text-xs text-muted-foreground">Highest</p>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-amber-600">{quizScores.length}</div>
+                  <p className="text-xs text-muted-foreground">Quizzes</p>
+                </div>
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Learning Summary */}
+        {/* Learning Progress */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5" />
-              Learning Summary
+              Learning Progress
             </CardTitle>
-            <CardDescription>Your overall progress and completion status</CardDescription>
+            <CardDescription>
+              {user.onboardingComplete 
+                ? 'Onboarding complete! Continue learning to master more skills.'
+                : 'Track your progress towards onboarding completion'
+              }
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-6">
-              {categoryProgress.map((cat) => (
-                <div key={cat.category}>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm font-medium">{cat.category}</span>
-                    <span className="text-sm font-semibold text-primary">
-                      {cat.completed}/{cat.total} ({cat.percentage}%)
-                    </span>
-                  </div>
-                  <Progress value={cat.percentage} className="h-3" />
+            <div className="space-y-5">
+              {/* Module Progress */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">Modules Completed</span>
+                  <span className="text-sm font-semibold text-primary">
+                    {totalCompletedModules}/{totalAvailableModules}
+                  </span>
                 </div>
-              ))}
+                <Progress value={moduleProgress} className="h-3" />
+                <p className="text-xs text-muted-foreground mt-1">
+                  {totalAvailableModules - totalCompletedModules > 0 
+                    ? `${totalAvailableModules - totalCompletedModules} more to explore`
+                    : '🎉 All available modules completed!'
+                  }
+                </p>
+              </div>
               
-              {/* Additional Stats */}
-              <div className="pt-4 border-t space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">SOPs Completed</span>
-                  <span className="font-semibold">{user.completedSOPs?.length || 0}</span>
+              {/* SOPs */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">SOPs Reviewed</span>
+                  <span className="text-sm font-semibold text-primary">
+                    {user.completedSOPs?.length || 0}
+                  </span>
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Tools Explored</span>
-                  <span className="font-semibold">{user.exploredTools?.length || 0}</span>
+                <Progress value={Math.min((user.completedSOPs?.length || 0) * 25, 100)} className="h-2" />
+              </div>
+              
+              {/* Tools */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">Tools Explored</span>
+                  <span className="text-sm font-semibold text-primary">
+                    {user.exploredTools?.length || 0}
+                  </span>
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Average Quiz Score</span>
-                  <span className="font-semibold">{Math.round(analytics.averageQuizScore)}%</span>
+                <Progress value={Math.min((user.exploredTools?.length || 0) * 33, 100)} className="h-2" />
+              </div>
+              
+              {/* Onboarding Status */}
+              <div className="pt-4 border-t">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Onboarding Status</span>
+                  <Badge variant={user.onboardingComplete ? "default" : "secondary"} className={user.onboardingComplete ? "bg-green-500" : ""}>
+                    {user.onboardingComplete ? (
+                      <><CheckCircle2 className="w-3 h-3 mr-1" /> Complete</>
+                    ) : (
+                      'In Progress'
+                    )}
+                  </Badge>
                 </div>
+                {user.onboardingCompletedDate && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Completed on {new Date(user.onboardingCompletedDate).toLocaleDateString()}
+                  </p>
+                )}
               </div>
             </div>
           </CardContent>
@@ -304,33 +312,75 @@ export default function AnalyticsPage() {
           <CardDescription>Your progression through learning segments</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {analytics.segmentHistory.slice(-10).reverse().map((entry, index) => {
-              const color = segmentColors[entry.segment];
-              return (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="flex items-center justify-between p-4 rounded-lg border"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full`} style={{ backgroundColor: color.fill }} />
-                    <Badge variant="outline" className={color.text}>
-                      {entry.segment}
-                    </Badge>
-                  </div>
-                  <span className="text-sm text-muted-foreground">
-                    {new Date(entry.date).toLocaleString()}
-                  </span>
-                </motion.div>
-              );
-            })}
-          </div>
+          {analytics.segmentHistory.length > 0 ? (
+            <div className="space-y-3">
+              {analytics.segmentHistory.slice(-10).reverse().map((entry, index) => {
+                const color = segmentColors[entry.segment];
+                return (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="flex items-center justify-between p-4 rounded-lg border"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-3 h-3 rounded-full`} style={{ backgroundColor: color.fill }} />
+                      <Badge variant="outline" className={color.text}>
+                        {entry.segment}
+                      </Badge>
+                      {index === 0 && (
+                        <Badge variant="secondary" className="text-xs">Current</Badge>
+                      )}
+                    </div>
+                    <span className="text-sm text-muted-foreground">
+                      {new Date(entry.date).toLocaleString()}
+                    </span>
+                  </motion.div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <TrendingUp className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>Your segment journey will appear here as you progress.</p>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Quick Stats Summary for HIGH_FLYER */}
+      {user.segment === 'HIGH_FLYER' && (
+        <Card className="border-green-200 dark:border-green-800 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4 mb-4">
+              <Trophy className="w-10 h-10 text-green-600" />
+              <div>
+                <h3 className="text-xl font-bold text-green-700 dark:text-green-300">High Flyer Achievement</h3>
+                <p className="text-sm text-green-600 dark:text-green-400">You've mastered the fundamentals and unlocked advanced content!</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-green-200 dark:border-green-800">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-700 dark:text-green-300">{totalCompletedModules}</div>
+                <p className="text-xs text-green-600 dark:text-green-400">Total Modules</p>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-700 dark:text-green-300">{avgScore}%</div>
+                <p className="text-xs text-green-600 dark:text-green-400">Avg Score</p>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-700 dark:text-green-300">{analytics.timeSpent}m</div>
+                <p className="text-xs text-green-600 dark:text-green-400">Time Invested</p>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-700 dark:text-green-300">{perfectScores}</div>
+                <p className="text-xs text-green-600 dark:text-green-400">Perfect Scores</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
-

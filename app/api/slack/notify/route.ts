@@ -6,13 +6,15 @@ const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL || '';
 const SLACK_CHANNEL_ID = process.env.SLACK_CHANNEL_ID || '';
 
 interface SlackNotificationPayload {
-  type: 'onboarding_complete' | 'quiz_failure';
+  type: 'onboarding_complete' | 'quiz_failure' | 'at_risk_recovery';
   userName: string;
   userTeam?: string;
   moduleTitle?: string;
   score?: number;
   avgScore?: number;
   completionDate?: string;
+  recoveryDate?: string;
+  totalInterventions?: number;
 }
 
 function formatOnboardingCompleteMessage(payload: SlackNotificationPayload): object {
@@ -125,6 +127,61 @@ function formatQuizFailureMessage(payload: SlackNotificationPayload): object {
   };
 }
 
+function formatAtRiskRecoveryMessage(payload: SlackNotificationPayload): object {
+  return {
+    channel: SLACK_CHANNEL_ID,
+    blocks: [
+      {
+        type: 'header',
+        text: {
+          type: 'plain_text',
+          text: '🎊 AT_RISK Recovery Success!',
+          emoji: true
+        }
+      },
+      {
+        type: 'section',
+        fields: [
+          {
+            type: 'mrkdwn',
+            text: `*User:*\n${payload.userName}`
+          },
+          {
+            type: 'mrkdwn',
+            text: `*Team:*\n${payload.userTeam || 'N/A'}`
+          }
+        ]
+      },
+      {
+        type: 'section',
+        fields: [
+          {
+            type: 'mrkdwn',
+            text: `*Recovered On:*\n${payload.recoveryDate ? new Date(payload.recoveryDate).toLocaleDateString() : new Date().toLocaleDateString()}`
+          },
+          {
+            type: 'mrkdwn',
+            text: `*Total Interventions:*\n${payload.totalInterventions || 1}`
+          }
+        ]
+      },
+      {
+        type: 'context',
+        elements: [
+          {
+            type: 'mrkdwn',
+            text: `🌟 Great news! User has successfully completed all remedial modules and is back on track. They have been promoted back to *ROOKIE* status.`
+          }
+        ]
+      },
+      {
+        type: 'divider'
+      }
+    ],
+    text: `🎊 ${payload.userName} from ${payload.userTeam || 'Unknown Team'} has recovered from AT_RISK status!`
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const payload: SlackNotificationPayload = await request.json();
@@ -145,6 +202,9 @@ export async function POST(request: NextRequest) {
         break;
       case 'quiz_failure':
         message = formatQuizFailureMessage(payload);
+        break;
+      case 'at_risk_recovery':
+        message = formatAtRiskRecoveryMessage(payload);
         break;
       default:
         return NextResponse.json(
@@ -186,4 +246,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

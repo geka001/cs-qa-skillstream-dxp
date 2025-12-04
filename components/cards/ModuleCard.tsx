@@ -16,6 +16,7 @@ interface ModuleCardProps {
   isNextRecommended?: boolean;
   unmetPrerequisites?: Module[];
   progress?: number;
+  lockedReason?: string;
 }
 
 export default function ModuleCard({ 
@@ -25,7 +26,8 @@ export default function ModuleCard({
   isLocked = false,
   isNextRecommended = false,
   unmetPrerequisites = [],
-  progress = 0
+  progress = 0,
+  lockedReason
 }: ModuleCardProps) {
   const difficultyColors = {
     beginner: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
@@ -127,17 +129,17 @@ export default function ModuleCard({
             </div>
           </div>
 
-          {/* Unmet Prerequisites Warning */}
-          {isLocked && unmetPrerequisites.length > 0 && (
+          {/* Locked Reason / Prerequisites Warning */}
+          {isLocked && (lockedReason || unmetPrerequisites.length > 0) && (
             <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
               <div className="flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-xs font-medium text-amber-700 dark:text-amber-300 mb-1">
-                    Prerequisites Required
+                    {lockedReason ? 'Module Locked' : 'Prerequisites Required'}
                   </p>
                   <p className="text-xs text-amber-600 dark:text-amber-400">
-                    Complete: {unmetPrerequisites.map(m => m.title).join(', ')}
+                    {lockedReason || `Complete: ${unmetPrerequisites.map(m => m.title).join(', ')}`}
                   </p>
                 </div>
               </div>

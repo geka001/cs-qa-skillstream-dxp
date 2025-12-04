@@ -66,7 +66,9 @@ export function calculateTeamStats(users: any[]) {
       highFlyerCount: 0,
       averageCompletion: 0,
       averageQuizScore: 0,
-      totalTimeSpent: 0
+      totalTimeSpent: 0,
+      totalInterventions: 0,
+      usersWithInterventions: 0
     };
   }
 
@@ -88,11 +90,15 @@ export function calculateTeamStats(users: any[]) {
   // Calculate average quiz score
   const allScores = users.flatMap(user => Object.values(user.quizScores || {}) as number[]);
   const averageQuizScore = allScores.length > 0
-    ? allScores.reduce((a, b) => a + b, 0) / allScores.length
+    ? allScores.reduce((a: number, b: number) => a + b, 0) / allScores.length
     : 0;
   
   // Total time spent
   const totalTimeSpent = users.reduce((sum, user) => sum + (user.timeSpent || 0), 0);
+  
+  // Total interventions (users who went to AT_RISK at some point)
+  const totalInterventions = users.reduce((sum, user) => sum + (user.interventionsReceived || 0), 0);
+  const usersWithInterventions = users.filter(u => (u.interventionsReceived || 0) > 0).length;
 
   return {
     totalUsers: users.length,
@@ -104,7 +110,9 @@ export function calculateTeamStats(users: any[]) {
     highFlyerCount: highFlyerUsers.length,
     averageCompletion: totalCompletion / users.length,
     averageQuizScore,
-    totalTimeSpent
+    totalTimeSpent,
+    totalInterventions,
+    usersWithInterventions
   };
 }
 

@@ -1,50 +1,84 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/contexts/AppContext';
 import { useManager } from '@/contexts/ManagerContext';
-import { UserProfile, Team } from '@/types';
+import { UserProfile, TeamConfig } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { GraduationCap, Rocket, Layers, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { GraduationCap, Rocket, Layers, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
 import { validateManagerCredentials } from '@/lib/managerAuth';
+import { getTeams } from '@/lib/teamService';
 
 type UserType = 'qa' | 'manager';
+
+// Team colors for visual distinction
+const TEAM_COLORS: Record<string, string> = {
+  'Launch': 'bg-purple-500',
+  'Data & Insights': 'bg-blue-500',
+  'AutoDraft': 'bg-orange-500',
+  'DAM': 'bg-cyan-500',
+};
+
+// Team descriptions
+const TEAM_DESCRIPTIONS: Record<string, string> = {
+  'Launch': 'Experience optimization and personalization platform',
+  'Data & Insights': 'Analytics and intelligence platform',
+  'AutoDraft': 'AI-powered content generation',
+  'DAM': 'Digital Asset Management system',
+};
 
 export default function LoginPage() {
   const [userType, setUserType] = useState<UserType>('qa');
   const [name, setName] = useState('');
-  const [selectedTeam, setSelectedTeam] = useState<Team>('Launch');
+  const [selectedTeam, setSelectedTeam] = useState<string>('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [teams, setTeams] = useState<TeamConfig[]>([]);
+  const [teamsLoading, setTeamsLoading] = useState(true);
   const { setUser, isLoading } = useApp();
   const { login: managerLogin } = useManager();
   const router = useRouter();
+
+  // Fetch teams from Contentstack on mount
+  useEffect(() => {
+    async function loadTeams() {
+      setTeamsLoading(true);
+      try {
+        const fetchedTeams = await getTeams();
+        setTeams(fetchedTeams);
+        // Set default selection to first team
+        if (fetchedTeams.length > 0 && !selectedTeam) {
+          setSelectedTeam(fetchedTeams[0].team);
+        }
+      } catch (error) {
+        // Teams will use fallback defaults
+      } finally {
+        setTeamsLoading(false);
+      }
+    }
+    loadTeams();
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    console.log('🔍 Login attempt:', { userType, selectedTeam, hasPassword: !!password, hasName: !!name });
-
     if (userType === 'qa') {
-      // QA Login Flow
-      console.log('📝 QA Login flow');
       if (!name.trim()) {
         setError('Please enter your name');
         return;
       }
 
-      // Create user profile (Contentstack will check if exists)
       const newUser: UserProfile = {
         name: name.trim(),
-        role: 'QA Engineer', // Default role, kept internally
+        role: 'QA Engineer',
         team: selectedTeam,
-        segment: 'ROOKIE', // All new users start as ROOKIE (or load existing)
+        segment: 'ROOKIE',
         joinDate: new Date().toISOString(),
         completedModules: [],
         quizScores: {},
@@ -56,64 +90,36 @@ export default function LoginPage() {
         onboardingComplete: false
       };
 
-      console.log('🔄 Setting user (will check Contentstack)...');
       await setUser(newUser);
-      console.log('✅ User set, redirecting to dashboard');
       router.push('/dashboard');
     } else {
-      // Manager Login Flow
-      console.log('👔 Manager Login flow');
       if (!password) {
         setError('Please enter password');
         return;
       }
 
-      console.log('🔐 Validating credentials for team:', selectedTeam);
       const isValid = validateManagerCredentials(selectedTeam, password);
-      console.log('🔐 Validation result:', isValid);
 
       if (isValid) {
-        console.log('✅ Manager credentials valid, logging in...');
         managerLogin(selectedTeam);
-        console.log('✅ Manager login successful, redirecting to /manager/dashboard');
-        
-        // Use setTimeout to ensure context state updates before navigation
         setTimeout(() => {
           router.replace('/manager/dashboard');
         }, 100);
       } else {
-        console.log('❌ Invalid password');
         setError('Invalid password. Please try again.');
       }
     }
   };
 
-  const teams: { value: Team; label: string; description: string; color: string }[] = [
-    { 
-      value: 'Launch', 
-      label: 'Launch', 
-      description: 'Experience optimization and personalization platform',
-      color: 'bg-purple-500'
-    },
-    { 
-      value: 'Data & Insights', 
-      label: 'Data & Insights', 
-      description: 'Analytics and intelligence platform',
-      color: 'bg-blue-500'
-    },
-    { 
-      value: 'AutoDraft', 
-      label: 'AutoDraft', 
-      description: 'AI-powered content generation',
-      color: 'bg-orange-500'
-    },
-    { 
-      value: 'DAM', 
-      label: 'DAM', 
-      description: 'Digital Asset Management system',
-      color: 'bg-cyan-500'
-    }
-  ];
+  // Get team color (with fallback)
+  const getTeamColor = (teamName: string) => {
+    return TEAM_COLORS[teamName] || 'bg-gray-500';
+  };
+
+  // Get team description (with fallback)
+  const getTeamDescription = (teamName: string) => {
+    return TEAM_DESCRIPTIONS[teamName] || `${teamName} team`;
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
@@ -154,7 +160,7 @@ export default function LoginPage() {
 
           <div className="grid grid-cols-2 gap-4 pt-4">
             <div className="p-4 bg-card rounded-lg border">
-              <div className="text-3xl font-bold text-primary">5</div>
+              <div className="text-3xl font-bold text-primary">{teams.length || 4}</div>
               <div className="text-sm text-muted-foreground">Product Teams</div>
             </div>
             <div className="p-4 bg-card rounded-lg border">
@@ -223,7 +229,7 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Conditional Fields */}
+              {/* Name input for QA */}
               {userType === 'qa' && (
                 <div className="space-y-2">
                   <label htmlFor="name" className="text-sm font-medium">
@@ -242,40 +248,52 @@ export default function LoginPage() {
                 </div>
               )}
 
+              {/* Team Selection - Dynamic from Contentstack */}
               <div className="space-y-3">
                 <label className="text-sm font-medium flex items-center gap-2">
                   <Layers className="w-4 h-4" />
                   {userType === 'qa' ? 'Select Your Product Team' : 'Select Your Team'}
                 </label>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {teams.map((team) => (
-                    <button
-                      key={team.value}
-                      type="button"
-                      onClick={() => setSelectedTeam(team.value)}
-                      className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
-                        selectedTeam === team.value
-                          ? 'border-primary bg-primary/5'
-                          : 'border-border hover:border-primary/50'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className={`w-4 h-4 rounded-full mt-1 ${team.color}`} />
-                        <div className="flex-1">
-                          <div className="font-semibold text-foreground">{team.label}</div>
-                          {userType === 'qa' && (
-                            <div className="text-sm text-muted-foreground">{team.description}</div>
+                
+                {teamsLoading ? (
+                  <div className="flex items-center justify-center p-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                    <span className="ml-2 text-muted-foreground">Loading teams...</span>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {teams.map((team) => (
+                      <button
+                        key={team.team}
+                        type="button"
+                        onClick={() => setSelectedTeam(team.team)}
+                        className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
+                          selectedTeam === team.team
+                            ? 'border-primary bg-primary/5'
+                            : 'border-border hover:border-primary/50'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`w-4 h-4 rounded-full mt-1 ${getTeamColor(team.team)}`} />
+                          <div className="flex-1">
+                            <div className="font-semibold text-foreground">{team.team}</div>
+                            {userType === 'qa' && (
+                              <div className="text-sm text-muted-foreground">
+                                {getTeamDescription(team.team)}
+                              </div>
+                            )}
+                          </div>
+                          {selectedTeam === team.team && (
+                            <div className="text-primary">✓</div>
                           )}
                         </div>
-                        {selectedTeam === team.value && (
-                          <div className="text-primary">✓</div>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
+              {/* Password for Manager */}
               {userType === 'manager' && (
                 <div className="space-y-2">
                   <label htmlFor="password" className="text-sm font-medium">
@@ -309,7 +327,12 @@ export default function LoginPage() {
                 </div>
               )}
 
-              <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+              <Button 
+                type="submit" 
+                className="w-full" 
+                size="lg" 
+                disabled={isLoading || teamsLoading || !selectedTeam}
+              >
                 {isLoading ? 'Loading...' : userType === 'qa' ? 'Start Learning' : 'Access Dashboard'}
               </Button>
             </form>
@@ -319,4 +342,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

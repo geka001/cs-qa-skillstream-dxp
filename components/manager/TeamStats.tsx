@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Users, CheckCircle2, AlertTriangle, TrendingUp, Clock, Trophy } from 'lucide-react';
+import { Users, CheckCircle2, AlertTriangle, TrendingUp, Clock, Trophy, Bell } from 'lucide-react';
 
 interface TeamStatsProps {
   stats: {
@@ -16,6 +16,8 @@ interface TeamStatsProps {
     averageCompletion: number;
     averageQuizScore: number;
     totalTimeSpent: number;
+    totalInterventions?: number;
+    usersWithInterventions?: number;
   };
 }
 
@@ -37,17 +39,18 @@ export default function TeamStats({ stats }: TeamStatsProps) {
     },
     {
       icon: AlertTriangle,
-      label: 'At-Risk Members',
-      value: `${stats.atRiskCount} (${Math.round(stats.atRiskRate)}%)`,
+      label: 'Currently At-Risk',
+      value: `${stats.atRiskCount} member${stats.atRiskCount !== 1 ? 's' : ''}`,
       color: 'text-red-600 dark:text-red-400',
       bgColor: 'bg-red-50 dark:bg-red-950'
     },
     {
-      icon: TrendingUp,
-      label: 'Average Completion',
-      value: `${Math.round(stats.averageCompletion)}%`,
-      color: 'text-purple-600 dark:text-purple-400',
-      bgColor: 'bg-purple-50 dark:bg-purple-950'
+      icon: Bell,
+      label: 'Total Interventions',
+      value: `${stats.totalInterventions || 0} (${stats.usersWithInterventions || 0} users)`,
+      subtext: 'Members who needed support',
+      color: 'text-amber-600 dark:text-amber-400',
+      bgColor: 'bg-amber-50 dark:bg-amber-950'
     },
     {
       icon: Trophy,
@@ -57,11 +60,11 @@ export default function TeamStats({ stats }: TeamStatsProps) {
       bgColor: 'bg-yellow-50 dark:bg-yellow-950'
     },
     {
-      icon: Clock,
-      label: 'Total Time Spent',
-      value: `${stats.totalTimeSpent} mins`,
-      color: 'text-cyan-600 dark:text-cyan-400',
-      bgColor: 'bg-cyan-50 dark:bg-cyan-950'
+      icon: TrendingUp,
+      label: 'Average Completion',
+      value: `${Math.round(stats.averageCompletion)}%`,
+      color: 'text-purple-600 dark:text-purple-400',
+      bgColor: 'bg-purple-50 dark:bg-purple-950'
     }
   ];
 

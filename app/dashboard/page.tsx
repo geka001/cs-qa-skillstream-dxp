@@ -10,7 +10,8 @@ import {
   getUnmetPrerequisites, 
   getNextRecommendedModule,
   sortModulesByOrder,
-  calculateModuleProgress 
+  calculateModuleProgress,
+  getAccessibleModulesCount
 } from '@/lib/prerequisites';
 import { calculateOnboardingRequirements } from '@/lib/onboarding';
 import ModuleCard from '@/components/cards/ModuleCard';
@@ -46,8 +47,8 @@ export default function DashboardPage() {
       if (user) {
         const content = await getPersonalizedContentAsync(user.segment, user.completedModules, user.team);
         
-        // Sort modules using prerequisites logic with completed modules
-        const sorted = sortModulesByOrder(content.modules, user.completedModules);
+        // Sort modules using prerequisites logic with completed modules and segment awareness
+        const sorted = sortModulesByOrder(content.modules, user.completedModules, user.segment);
         
         setPersonalizedModules(sorted);
 
@@ -133,8 +134,11 @@ export default function DashboardPage() {
   // Calculate onboarding requirements
   const onboardingReqs = calculateOnboardingRequirements(user);
   
-  // Get next recommended module
-  const nextRecommendedModule = getNextRecommendedModule(personalizedModules, completedModuleIds);
+  // Get next recommended module (segment-aware)
+  const nextRecommendedModule = getNextRecommendedModule(personalizedModules, completedModuleIds, user.segment);
+  
+  // Get accessible modules count (segment-aware)
+  const accessibleModulesCount = getAccessibleModulesCount(personalizedModules, completedModuleIds, user.segment);
   
   // Check if there are remaining remedial modules (for AT_RISK users)
   const remedialModules = personalizedModules.filter(m => 
@@ -158,7 +162,7 @@ export default function DashboardPage() {
               <div>
                 <CardTitle className="text-2xl flex items-center gap-2">
                   <Sparkles className="w-6 h-6 text-primary" />
-                  Welcome back, {user.name}!
+                  Welcome, {user.name}!
                 </CardTitle>
                 <p className="text-muted-foreground mt-2">{welcomeMessage}</p>
               </div>
@@ -200,8 +204,17 @@ export default function DashboardPage() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Available Modules</p>
-                <p className="text-3xl font-bold">{personalizedModules.length}</p>
+                <p className="text-sm text-muted-foreground">
+                  {user.segment === 'AT_RISK' ? 'Accessible Now' : 'Total Modules'}
+                </p>
+                <p className="text-3xl font-bold">
+                  {user.segment === 'AT_RISK' ? accessibleModulesCount : personalizedModules.length}
+                </p>
+                {user.segment === 'AT_RISK' && accessibleModulesCount < personalizedModules.length && (
+                  <p className="text-xs text-muted-foreground">
+                    +{personalizedModules.length - accessibleModulesCount} locked
+                  </p>
+                )}
               </div>
               <Sparkles className="w-8 h-8 text-primary/50" />
             </div>
@@ -212,7 +225,9 @@ export default function DashboardPage() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Mandatory for Onboarding</p>
+                <p className="text-sm text-muted-foreground">
+                  {user.segment === 'AT_RISK' ? 'Remedial Progress' : 'Mandatory Modules'}
+                </p>
                 <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">
                   {onboardingReqs.modules.completed}/{onboardingReqs.modules.required}
                 </p>

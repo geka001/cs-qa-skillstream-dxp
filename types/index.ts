@@ -1,8 +1,18 @@
 // User segment types
 export type UserSegment = 'ROOKIE' | 'AT_RISK' | 'HIGH_FLYER';
 
-// Team types for Contentstack products
-export type Team = 'Launch' | 'Data & Insights' | 'AutoDraft' | 'DAM';
+// Team type - now dynamic (fetched from Contentstack)
+// Using string instead of union type to support dynamic teams
+export type Team = string;
+
+// Team configuration interface (fetched from Contentstack)
+export interface TeamConfig {
+  team: string;
+  displayName: string;
+  managerName: string;
+  managerEmail: string;
+  isActive?: boolean;
+}
 
 // User profile interface
 export interface UserProfile {

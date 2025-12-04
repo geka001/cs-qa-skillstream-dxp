@@ -10,7 +10,8 @@ import {
   getUnmetPrerequisites, 
   getNextRecommendedModule,
   sortModulesByOrder,
-  calculateModuleProgress 
+  calculateModuleProgress,
+  isLockedDueToAtRisk
 } from '@/lib/prerequisites';
 import ModuleCard from '@/components/cards/ModuleCard';
 import ModuleViewer from '@/components/modules/ModuleViewer';
@@ -128,8 +129,8 @@ export default function ModulesPage() {
 
   const completedCount = filteredModules.filter(m => user.completedModules.includes(m.id)).length;
   
-  // Get next recommended module for the entire personalized set
-  const nextRecommendedModule = getNextRecommendedModule(personalizedModules, user.completedModules);
+  // Get next recommended module for the entire personalized set (segment-aware)
+  const nextRecommendedModule = getNextRecommendedModule(personalizedModules, user.completedModules, user.segment);
 
   return (
     <div className="space-y-6">
@@ -228,8 +229,11 @@ export default function ModulesPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredModules.map((module) => {
           const isCompleted = user.completedModules.includes(module.id);
-          const isLocked = !canAccessModule(module, user.completedModules);
-          const unmetPrereqs = isLocked ? getUnmetPrerequisites(module, user.completedModules, personalizedModules) : [];
+          // Use segment-aware locking
+          const isLocked = !canAccessModule(module, user.completedModules, user.segment, personalizedModules);
+          const lockedByAtRisk = isLockedDueToAtRisk(module, user.completedModules, user.segment, personalizedModules);
+          // Get prerequisites with segment awareness
+          const unmetPrereqs = isLocked ? getUnmetPrerequisites(module, user.completedModules, personalizedModules, user.segment) : [];
           // Hide recommendation highlight if user is viewing a module
           const isNextRecommended = (nextRecommendedModule?.id === module.id) && !selectedModule;
           const progress = calculateModuleProgress(module.id, user.completedModules, user.moduleProgress);
@@ -244,6 +248,7 @@ export default function ModulesPage() {
               isNextRecommended={isNextRecommended}
               unmetPrerequisites={unmetPrereqs}
               progress={progress}
+              lockedReason={lockedByAtRisk ? 'Complete remedial modules first' : undefined}
             />
           );
         })}

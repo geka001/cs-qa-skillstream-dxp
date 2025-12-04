@@ -1,61 +1,70 @@
 /**
  * Manager Configuration
- * Maps each Contentstack product team to their manager
- * Easily configurable - update manager details here
+ * 
+ * Teams and managers are now fetched dynamically from Contentstack.
+ * To add a new team: Create a new entry in the `manager_config` content type.
+ * 
+ * This file provides fallback data and utility functions.
  */
 
-import { Team, ManagerConfig } from '@/types';
+import { ManagerConfig } from '@/types';
+import { getTeams, getManagerForTeam as getManagerFromService } from '@/lib/teamService';
 
-// Manager configuration for each team
+// Fallback manager configuration (used when Contentstack is unavailable)
 export const MANAGER_CONFIG: ManagerConfig[] = [
-  {
-    team: 'Launch',
-    managerName: 'Sarah Johnson',
-    managerEmail: 'sarah.johnson@contentstack.com'
-  },
-  {
-    team: 'Data & Insights',
-    managerName: 'Mike Chen',
-    managerEmail: 'mike.chen@contentstack.com'
-  },
-  {
-    team: 'AutoDraft',
-    managerName: 'Lisa Wong',
-    managerEmail: 'lisa.wong@contentstack.com'
-  },
-  {
-    team: 'DAM',
-    managerName: 'Tom Brown',
-    managerEmail: 'tom.brown@contentstack.com'
-  }
+  { team: 'Launch', managerName: 'Sarah Chen', managerEmail: 'sarah.chen@contentstack.com' },
+  { team: 'Data & Insights', managerName: 'Michael Rodriguez', managerEmail: 'michael.rodriguez@contentstack.com' },
+  { team: 'AutoDraft', managerName: 'James Kim', managerEmail: 'james.kim@contentstack.com' },
+  { team: 'DAM', managerName: 'Emily Thompson', managerEmail: 'emily.thompson@contentstack.com' },
 ];
 
 /**
- * Get manager details for a specific team
+ * Get manager details for a specific team (sync version - uses fallback)
  */
-export function getManagerForTeam(team: Team): ManagerConfig | undefined {
+export function getManagerForTeam(team: string): ManagerConfig | undefined {
   return MANAGER_CONFIG.find(config => config.team === team);
 }
 
 /**
- * Simulate sending email to manager
- * In production, this would call an actual email service
+ * Get manager details for a specific team (async version - fetches from Contentstack)
+ */
+export async function getManagerForTeamAsync(team: string): Promise<ManagerConfig | undefined> {
+  const manager = await getManagerFromService(team);
+  if (manager) {
+    return {
+      team,
+      managerName: manager.name,
+      managerEmail: manager.email,
+    };
+  }
+  // Fallback to static config
+  return getManagerForTeam(team);
+}
+
+/**
+ * Get all teams (async - fetches from Contentstack)
+ */
+export async function getAllTeams(): Promise<string[]> {
+  const teams = await getTeams();
+  return teams.map(t => t.team);
+}
+
+/**
+ * Send notification to manager
  */
 export function notifyManager(
-  team: Team,
+  team: string,
   notificationType: 'onboarding_complete' | 'at_risk',
   userName: string
 ): void {
   const manager = getManagerForTeam(team);
   if (!manager) return;
 
-  // Generate email content (ready for production email service)
   const emailContent = generateEmailContent(notificationType, userName, team, manager);
   
   // In production, send actual email:
   // sendEmail(manager.managerEmail, emailContent.subject, emailContent.body);
   
-  // For now, just log to server (not browser console)
   if (typeof window === 'undefined') {
     console.log(`[Email] To: ${manager.managerEmail}, Subject: ${emailContent.subject}`);
   }
@@ -67,7 +76,7 @@ export function notifyManager(
 function generateEmailContent(
   type: 'onboarding_complete' | 'at_risk',
   userName: string,
-  team: Team,
+  team: string,
   manager: ManagerConfig
 ): { subject: string; body: string } {
   if (type === 'onboarding_complete') {
@@ -120,21 +129,13 @@ SkillStream QA Training Platform
 }
 
 /**
- * Update manager configuration (for admin use)
- * In production, this might be stored in a database or CMS
+ * Get all manager configurations (async - fetches from Contentstack)
  */
-export function updateManager(team: Team, managerName: string, managerEmail: string): boolean {
-  const index = MANAGER_CONFIG.findIndex(config => config.team === team);
-  if (index === -1) return false;
-
-  MANAGER_CONFIG[index] = { team, managerName, managerEmail };
-  return true;
+export async function getAllManagers(): Promise<ManagerConfig[]> {
+  const teams = await getTeams();
+  return teams.map(t => ({
+    team: t.team,
+    managerName: t.managerName,
+    managerEmail: t.managerEmail,
+  }));
 }
-
-/**
- * Get all manager configurations
- */
-export function getAllManagers(): ManagerConfig[] {
-  return [...MANAGER_CONFIG];
-}
-

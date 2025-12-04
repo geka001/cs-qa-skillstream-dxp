@@ -1955,12 +1955,16 @@ let contentstackContentCache: { [key: string]: { modules: Module[], sops: SOP[],
 const getCacheKey = (team: Team, segment: UserSegment) => `${team}_${segment}`;
 
 // Helper to apply segment-specific logic to modules
+// IMPORTANT: Always include completed modules so user's journey is preserved
 function applySegmentLogic(
   segment: UserSegment, 
   modules: Module[], 
   completedModules: string[]
 ): { modules: Module[], tools: Tool[], sops: SOP[] } {
   let processedModules = modules;
+  
+  // Get all completed modules (preserve user's full journey)
+  const completedModuleObjects = modules.filter(m => completedModules.includes(m.id));
   
   // Apply segment-specific logic
   if (segment === 'AT_RISK') {
@@ -1985,22 +1989,31 @@ function applySegmentLogic(
         return isRemedial || wasCompleted;
       });
     } else {
-      // All remedial complete - show all available content
+      // All remedial complete - show all available content INCLUDING completed remedial
       processedModules = modules.filter(m => 
-        m.targetSegments.includes('AT_RISK') || m.targetSegments.includes('ROOKIE')
+        m.targetSegments.includes('AT_RISK') || 
+        m.targetSegments.includes('ROOKIE') ||
+        completedModules.includes(m.id) // Include all completed modules
       );
     }
   } else if (segment === 'HIGH_FLYER') {
+    // HIGH_FLYER sees: HIGH_FLYER content + ROOKIE content + ALL completed modules (including remedial)
     processedModules = modules.filter(m => 
       m.targetSegments.includes('HIGH_FLYER') || 
       m.targetSegments.includes('ROOKIE') ||
-      completedModules.includes(m.id)
+      completedModules.includes(m.id) // Include all completed modules (remedial, at-risk, etc.)
     );
   } else {
-    processedModules = modules.filter(m => m.targetSegments.includes(segment));
+    // ROOKIE: see ROOKIE content + all completed modules (in case they recovered from AT_RISK)
+    processedModules = modules.filter(m => 
+      m.targetSegments.includes(segment) ||
+      completedModules.includes(m.id) // Include all completed modules
+    );
   }
   
-  const sortedModules = sortModulesByOrder(processedModules);
+  // Remove duplicates and sort
+  const uniqueModules = Array.from(new Map(processedModules.map(m => [m.id, m])).values());
+  const sortedModules = sortModulesByOrder(uniqueModules);
   
   // Return with empty tools and sops (they're fetched separately)
   return {
@@ -2094,6 +2107,7 @@ export function getPersonalizedContent(
   }
   
   // Content access rules based on segment
+  // IMPORTANT: Always include completed modules to preserve user's learning journey
   if (segment === 'AT_RISK') {
     // Get all AT_RISK remedial modules
     const remedialModules = availableModules.filter(m => 
@@ -2113,22 +2127,30 @@ export function getPersonalizedContent(
         return isRemedial || wasCompleted;
       });
     } else {
-      // All remedial complete - show ROOKIE content too
-      const allModules = availableModules.filter(m => 
-        m.targetSegments.includes('AT_RISK') || m.targetSegments.includes('ROOKIE')
+      // All remedial complete - show ROOKIE content + all completed modules
+      modules = availableModules.filter(m => 
+        m.targetSegments.includes('AT_RISK') || 
+        m.targetSegments.includes('ROOKIE') ||
+        completedModules.includes(m.id) // Include all completed
       );
-      modules = allModules;
     }
   } else if (segment === 'HIGH_FLYER') {
-    // HIGH_FLYER users see all content (they've mastered basics)
+    // HIGH_FLYER: HIGH_FLYER + ROOKIE + all completed (including remedial they may have done)
     modules = availableModules.filter(m => 
       m.targetSegments.includes('HIGH_FLYER') || 
-      m.targetSegments.includes('ROOKIE') // Keep access to fundamentals
+      m.targetSegments.includes('ROOKIE') ||
+      completedModules.includes(m.id) // Include all completed modules
     );
   } else {
-    // ROOKIE sees only their content
-    modules = availableModules.filter(m => m.targetSegments.includes(segment));
+    // ROOKIE: ROOKIE content + all completed (in case they recovered from AT_RISK)
+    modules = availableModules.filter(m => 
+      m.targetSegments.includes(segment) ||
+      completedModules.includes(m.id)
+    );
   }
+  
+  // Remove duplicates
+  modules = Array.from(new Map(modules.map(m => [m.id, m])).values());
 
   const sops = mockSOPs.filter(s => s.targetSegments.includes(segment));
   

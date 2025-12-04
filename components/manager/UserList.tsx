@@ -12,9 +12,13 @@ import {
   TrendingUp,
   Eye,
   Trophy,
-  BookOpen
+  BookOpen,
+  ChevronDown,
+  ChevronUp,
+  History,
+  Shield
 } from 'lucide-react';
-import { UserProfile } from '@/types';
+import { UserProfile, UserSegment } from '@/types';
 import { formatLastActivity } from '@/lib/managerAuth';
 import { getPersonalizedContent } from '@/data/mockData';
 import { calculateOnboardingRequirements } from '@/lib/onboarding';
@@ -26,6 +30,19 @@ interface UserListProps {
 
 export default function UserList({ users, onViewDetails }: UserListProps) {
   const [sortBy, setSortBy] = useState<'name' | 'progress' | 'activity'>('activity');
+  const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
+
+  const toggleExpand = (key: string) => {
+    setExpandedUsers(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
 
   if (users.length === 0) {
     return (
@@ -83,8 +100,6 @@ export default function UserList({ users, onViewDetails }: UserListProps) {
   };
 
   const calculateCompletion = (user: UserProfile) => {
-    // Use the same logic as QA dashboard: calculate based on actual available modules
-    // This will match what the user sees in their own dashboard
     const personalizedContent = getPersonalizedContent(user.segment, user.completedModules, user.team);
     const totalModules = personalizedContent.modules.length;
     const completedCount = user.completedModules?.length || 0;
@@ -97,6 +112,55 @@ export default function UserList({ users, onViewDetails }: UserListProps) {
     const scores = Object.values(user.quizScores || {});
     if (scores.length === 0) return 0;
     return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+  };
+
+  // Check if user was ever AT_RISK
+  const wasEverAtRisk = (user: UserProfile) => {
+    if (!user.segmentHistory) return false;
+    return user.segmentHistory.some(entry => entry.segment === 'AT_RISK');
+  };
+
+  // Get AT_RISK periods from segment history
+  const getAtRiskPeriods = (user: UserProfile) => {
+    if (!user.segmentHistory || user.segmentHistory.length === 0) return [];
+    
+    const periods: { start: string; end?: string; recovered: boolean }[] = [];
+    let currentAtRiskStart: string | null = null;
+    
+    for (let i = 0; i < user.segmentHistory.length; i++) {
+      const entry = user.segmentHistory[i];
+      
+      if (entry.segment === 'AT_RISK' && !currentAtRiskStart) {
+        currentAtRiskStart = entry.date;
+      } else if (entry.segment !== 'AT_RISK' && currentAtRiskStart) {
+        periods.push({
+          start: currentAtRiskStart,
+          end: entry.date,
+          recovered: true
+        });
+        currentAtRiskStart = null;
+      }
+    }
+    
+    // If still in AT_RISK
+    if (currentAtRiskStart) {
+      periods.push({
+        start: currentAtRiskStart,
+        recovered: false
+      });
+    }
+    
+    return periods;
+  };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   return (
@@ -135,6 +199,9 @@ export default function UserList({ users, onViewDetails }: UserListProps) {
           const avgScore = calculateAverageScore(user);
           const onboardingReqs = calculateOnboardingRequirements(user);
           const SegmentIcon = () => getSegmentIcon(user.segment);
+          const hadInterventions = wasEverAtRisk(user);
+          const atRiskPeriods = getAtRiskPeriods(user);
+          const isExpanded = expandedUsers.has(user.storageKey);
 
           return (
             <Card key={user.storageKey} className={`hover:shadow-lg transition-shadow border-l-4 ${segmentStyle.border}`}>
@@ -148,7 +215,7 @@ export default function UserList({ users, onViewDetails }: UserListProps) {
                       </div>
                       <div className="flex-1">
                         <h3 className="font-semibold text-lg">{user.name}</h3>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <Badge variant="outline" className="text-xs">
                             {user.team}
                           </Badge>
@@ -158,6 +225,16 @@ export default function UserList({ users, onViewDetails }: UserListProps) {
                             <SegmentIcon />
                             <span className="ml-1">{user.segment}</span>
                           </Badge>
+                          {/* Intervention indicator */}
+                          {hadInterventions && user.segment !== 'AT_RISK' && (
+                            <Badge 
+                              variant="outline" 
+                              className="text-xs bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-300"
+                            >
+                              <History className="w-3 h-3 mr-1" />
+                              Had {user.interventionsReceived || atRiskPeriods.length} intervention{(user.interventionsReceived || atRiskPeriods.length) !== 1 ? 's' : ''}
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -184,6 +261,109 @@ export default function UserList({ users, onViewDetails }: UserListProps) {
                       Mandatory: {onboardingReqs.modules.completed}/{onboardingReqs.modules.required} modules • {onboardingReqs.sops.completed}/{onboardingReqs.sops.required} SOPs • {onboardingReqs.tools.completed}/{onboardingReqs.tools.required} tools
                     </div>
                   </div>
+
+                  {/* Intervention History - Expandable */}
+                  {(hadInterventions || user.segment === 'AT_RISK') && (
+                    <div className="border rounded-lg overflow-hidden">
+                      <button
+                        onClick={() => toggleExpand(user.storageKey)}
+                        className={`w-full flex items-center justify-between p-3 text-left transition-colors ${
+                          user.segment === 'AT_RISK' 
+                            ? 'bg-red-50 dark:bg-red-950 hover:bg-red-100 dark:hover:bg-red-900' 
+                            : 'bg-amber-50 dark:bg-amber-950 hover:bg-amber-100 dark:hover:bg-amber-900'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          {user.segment === 'AT_RISK' ? (
+                            <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
+                          ) : (
+                            <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                          )}
+                          <span className={`text-sm font-medium ${
+                            user.segment === 'AT_RISK' 
+                              ? 'text-red-700 dark:text-red-300' 
+                              : 'text-amber-700 dark:text-amber-300'
+                          }`}>
+                            {user.segment === 'AT_RISK' 
+                              ? 'Currently At-Risk' 
+                              : `Intervention History (${atRiskPeriods.length} time${atRiskPeriods.length !== 1 ? 's' : ''})`
+                            }
+                          </span>
+                        </div>
+                        {isExpanded ? (
+                          <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                        )}
+                      </button>
+                      
+                      {isExpanded && (
+                        <div className="p-3 bg-background border-t space-y-3">
+                          {atRiskPeriods.length > 0 ? (
+                            atRiskPeriods.map((period, idx) => (
+                              <div 
+                                key={idx} 
+                                className={`p-3 rounded-lg border ${
+                                  period.recovered 
+                                    ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800' 
+                                    : 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs font-medium text-muted-foreground">
+                                    Period {atRiskPeriods.length - idx}
+                                  </span>
+                                  {period.recovered ? (
+                                    <Badge className="bg-green-500 text-xs">
+                                      <CheckCircle2 className="w-3 h-3 mr-1" />
+                                      Recovered
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="destructive" className="text-xs">
+                                      <AlertTriangle className="w-3 h-3 mr-1" />
+                                      Active
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="space-y-1 text-xs">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-muted-foreground">Entered AT_RISK:</span>
+                                    <span className="font-medium">{formatDate(period.start)}</span>
+                                  </div>
+                                  {period.end && (
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-muted-foreground">Recovered:</span>
+                                      <span className="font-medium text-green-600 dark:text-green-400">{formatDate(period.end)}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-center text-sm text-muted-foreground py-2">
+                              No detailed history available
+                            </div>
+                          )}
+                          
+                          {/* Summary */}
+                          <div className="pt-2 border-t text-xs text-muted-foreground">
+                            <div className="flex items-center justify-between">
+                              <span>Total Interventions:</span>
+                              <span className="font-semibold">{user.interventionsReceived || atRiskPeriods.length}</span>
+                            </div>
+                            {atRiskPeriods.filter(p => p.recovered).length > 0 && (
+                              <div className="flex items-center justify-between mt-1">
+                                <span>Times Recovered:</span>
+                                <span className="font-semibold text-green-600 dark:text-green-400">
+                                  {atRiskPeriods.filter(p => p.recovered).length}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Overall Progress */}
                   <div className="space-y-2">
@@ -236,4 +416,3 @@ export default function UserList({ users, onViewDetails }: UserListProps) {
     </div>
   );
 }
-

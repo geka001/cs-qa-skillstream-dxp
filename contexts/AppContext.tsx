@@ -8,7 +8,7 @@ import { getUserByNameAndTeam, createUser, updateUser } from '@/lib/userService'
 import { calculateOnboardingRequirements } from '@/lib/onboarding';
 import OnboardingCompleteModal from '@/components/modals/OnboardingCompleteModal';
 import { setPersonalizeAttributes, initializePersonalize, trackEvent } from '@/lib/personalize';
-import { notifyOnboardingComplete, notifyQuizFailure } from '@/lib/slackNotifications';
+import { notifyOnboardingComplete, notifyQuizFailure, notifyAtRiskRecovery } from '@/lib/slackNotifications';
 import { getPersonalizedContent } from '@/data/mockData';
 
 interface AppContextType {
@@ -171,6 +171,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             await getPersonalizedContentAsync('ROOKIE', userToSet.completedModules, userToSet.team);
             toast.success('🎉 Great progress! You\'re back on track!', {
               description: 'You\'ve completed all required modules.'
+            });
+            
+            // Send Slack notification for AT_RISK recovery
+            notifyAtRiskRecovery({
+              userName: userToSet.name,
+              userTeam: userToSet.team,
+              recoveryDate: new Date().toISOString(),
+              totalInterventions: userToSet.interventionsReceived || 1
             });
           }
         }
@@ -361,6 +369,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         updateSegment('ROOKIE');
         toast.success('🎉 Great progress! You\'re back on track!', {
           description: 'You\'ve completed all required modules. Keep up the good work!'
+        });
+        
+        // Send Slack notification for AT_RISK recovery
+        notifyAtRiskRecovery({
+          userName: updatedUser.name,
+          userTeam: updatedUser.team,
+          recoveryDate: new Date().toISOString(),
+          totalInterventions: updatedUser.interventionsReceived || 1
         });
       }
     } else if (score >= 90 && updatedUser.onboardingComplete && updatedUser.segment !== 'HIGH_FLYER') {
