@@ -1,13 +1,34 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { Bell, Search, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { TeamConfig } from '@/types';
+import { getTeams } from '@/lib/teamService';
 
 export default function Topbar() {
   const { user, analytics } = useApp();
+  const [teamConfig, setTeamConfig] = useState<TeamConfig | null>(null);
+
+  // Fetch team config to get logo
+  useEffect(() => {
+    async function loadTeamConfig() {
+      if (!user?.team) return;
+      try {
+        const teams = await getTeams();
+        const config = teams.find(t => t.team === user.team);
+        if (config) {
+          setTeamConfig(config);
+        }
+      } catch (error) {
+        // Silently fail - logo is optional
+      }
+    }
+    loadTeamConfig();
+  }, [user?.team]);
 
   if (!user) return null;
 
@@ -63,6 +84,14 @@ export default function Topbar() {
 
           {/* User Info */}
           <div className="flex items-center gap-3">
+            {/* Team Logo */}
+            {teamConfig?.logo && (
+              <img 
+                src={teamConfig.logo} 
+                alt={`${user.team} logo`}
+                className="w-8 h-8 rounded object-contain hidden sm:block"
+              />
+            )}
             <div className="text-right hidden sm:block">
               <div className="font-semibold text-sm">{user.name}</div>
               <div className="text-xs text-muted-foreground">{user.team}</div>

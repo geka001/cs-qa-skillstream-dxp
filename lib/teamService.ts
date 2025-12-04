@@ -124,6 +124,11 @@ export interface PageEntry {
           manager_email?: string;
           color?: string;      // Team color from Contentstack
           icon?: string;       // Team icon from Contentstack
+          logo?: {             // Team logo from Contentstack assets
+            uid?: string;
+            url?: string;
+            filename?: string;
+          };
         }>;
       }>;
     };
@@ -223,6 +228,7 @@ export async function getLoginPageData(): Promise<LoginPageData> {
               uid: teamData.uid || '',
               color: teamData.color || '',  // Color from Contentstack
               icon: teamData.icon || '',     // Icon from Contentstack
+              logo: teamData.logo?.url || '', // Logo URL from Contentstack assets
             };
           });
       }

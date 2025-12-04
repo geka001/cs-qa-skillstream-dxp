@@ -11,7 +11,8 @@ import { calculateTeamStats } from '@/lib/managerAuth';
 import TeamStats from '@/components/manager/TeamStats';
 import UserList from '@/components/manager/UserList';
 import UserDetailModal from '@/components/manager/UserDetailModal';
-import { UserProfile } from '@/types';
+import { UserProfile, TeamConfig } from '@/types';
+import { getTeams } from '@/lib/teamService';
 
 export default function ManagerDashboardPage() {
   const { isAuthenticated, selectedTeam, logout } = useManager();
@@ -22,6 +23,7 @@ export default function ManagerDashboardPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [teamConfig, setTeamConfig] = useState<TeamConfig | null>(null);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -57,6 +59,23 @@ export default function ManagerDashboardPage() {
     loadData();
   }, [selectedTeam]);
 
+  // Load team config (including logo)
+  useEffect(() => {
+    async function loadTeamConfig() {
+      if (!selectedTeam) return;
+      try {
+        const teams = await getTeams();
+        const config = teams.find(t => t.team === selectedTeam);
+        if (config) {
+          setTeamConfig(config);
+        }
+      } catch (error) {
+        console.error('Error loading team config:', error);
+      }
+    }
+    loadTeamConfig();
+  }, [selectedTeam]);
+
   // Auto-refresh every 30 seconds
   useEffect(() => {
     const interval = setInterval(() => {
@@ -90,8 +109,13 @@ export default function ManagerDashboardPage() {
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center">
-                <GraduationCap className="w-6 h-6 text-white" />
+              {/* SkillStream Logo - Always show for branding */}
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
+                <img 
+                  src="https://images.contentstack.io/v3/assets/blt8202119c48319b1d/blt0719c05cb93fa636/6931bc63178ae2ee6634f01d/CS_OnlyLogo.webp"
+                  alt="SkillStream Logo"
+                  className="w-10 h-10 object-contain"
+                />
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -107,6 +131,14 @@ export default function ManagerDashboardPage() {
             </div>
 
             <div className="flex items-center gap-3">
+              {/* Team Logo */}
+              {teamConfig?.logo && (
+                <img 
+                  src={teamConfig.logo} 
+                  alt={`${selectedTeam} logo`}
+                  className="w-10 h-10 rounded-lg object-contain hidden sm:block"
+                />
+              )}
               <div className="text-right hidden sm:block">
                 <div className="text-sm font-medium">Manager</div>
                 <div className="text-xs text-muted-foreground">{selectedTeam}</div>

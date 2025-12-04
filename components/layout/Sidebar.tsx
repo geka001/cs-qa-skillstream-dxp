@@ -63,8 +63,12 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="p-6 border-b border-border">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-            <GraduationCap className="w-6 h-6 text-white" />
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden">
+            <img 
+              src="https://images.contentstack.io/v3/assets/blt8202119c48319b1d/blt0719c05cb93fa636/6931bc63178ae2ee6634f01d/CS_OnlyLogo.webp"
+              alt="SkillStream Logo"
+              className="w-9 h-9 object-contain"
+            />
           </div>
           <div>
             <h1 className="font-bold text-lg">SkillStream</h1>

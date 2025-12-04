@@ -178,8 +178,12 @@ export default function LoginPage() {
         {/* Left side - Branding */}
         <div className="text-center md:text-left space-y-6">
           <div className="flex items-center justify-center md:justify-start gap-3">
-            <div className="w-16 h-16 bg-primary rounded-xl flex items-center justify-center">
-              <GraduationCap className="w-10 h-10 text-white" />
+            <div className="w-16 h-16 rounded-xl flex items-center justify-center overflow-hidden">
+              <img 
+                src="https://images.contentstack.io/v3/assets/blt8202119c48319b1d/blt0719c05cb93fa636/6931bc63178ae2ee6634f01d/CS_OnlyLogo.webp"
+                alt="SkillStream Logo"
+                className="w-14 h-14 object-contain"
+              />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -351,10 +355,21 @@ export default function LoginPage() {
                           }`}
                         >
                           <div className="flex items-start gap-3">
-                            <div 
-                              className={`w-4 h-4 rounded-full mt-1 ${teamColor}`}
-                              style={hexColor ? { backgroundColor: hexColor } : undefined}
-                            />
+                            {/* Team Logo or Color Indicator */}
+                            {team.logo ? (
+                              <img 
+                                src={team.logo} 
+                                alt={`${team.team} logo`}
+                                className="w-8 h-8 rounded object-contain"
+                              />
+                            ) : (
+                              <div 
+                                className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm ${teamColor}`}
+                                style={hexColor ? { backgroundColor: hexColor } : undefined}
+                              >
+                                {team.team.charAt(0)}
+                              </div>
+                            )}
                             <div className="flex-1">
                               <div className="font-semibold text-foreground">{team.displayName || team.team}</div>
                               {userType === 'qa' && (

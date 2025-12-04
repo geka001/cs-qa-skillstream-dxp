@@ -108,8 +108,12 @@ export default function OnboardingCompleteModal({
                           animate={{ scale: [1, 1.2, 1] }}
                           transition={{ duration: 2, repeat: Infinity }}
                         />
-                        <div className="relative bg-gradient-to-r from-green-500 to-emerald-600 rounded-full p-6">
-                          <GraduationCap className="w-16 h-16 text-white" />
+                        <div className="relative bg-gradient-to-r from-green-500 to-emerald-600 rounded-full p-4">
+                          <img 
+                            src="https://images.contentstack.io/v3/assets/blt8202119c48319b1d/blt0719c05cb93fa636/6931bc63178ae2ee6634f01d/CS_OnlyLogo.webp"
+                            alt="SkillStream Logo"
+                            className="w-16 h-16 object-contain"
+                          />
                         </div>
                       </div>
                       

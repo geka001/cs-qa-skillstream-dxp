@@ -21,6 +21,18 @@ const CONFIG = {
 // Track initialization state
 let isInitialized = false;
 
+// Edit button enabled state - change this to control edit button visibility
+const EDIT_BUTTON_ENABLED = false;
+
+/**
+ * Reset Live Preview initialization state
+ * Call this to force re-initialization with new settings
+ */
+export function resetLivePreview(): void {
+  isInitialized = false;
+  console.log('🔄 Live Preview: Reset - will re-initialize on next call');
+}
+
 /**
  * Initialize Live Preview SDK with Visual Builder mode
  * Call this once on client-side (e.g., in a provider component)
@@ -54,12 +66,15 @@ export function initializeLivePreview(): void {
       // Required for Next.js client-side rendering
       ssr: false,
       // Enable edit button on hover for better UX
-      editButton: {
-        enable: true,
-        exclude: ["outsideLivePreviewPortal"],
-        includeByQueryParameter: true,
-        position: "bottom",
-      },
+    //   editButton: {
+    //     enable: EDIT_BUTTON_ENABLED,
+    //     exclude: ["outsideLivePreviewPortal"],
+    //     includeByQueryParameter: true,
+    //     position: "bottom",
+    //   },
+       editButton: {
+        enable: false
+        },
       // Client URL configuration for proper communication
       clientUrlParams: {
         protocol: typeof window !== 'undefined' ? window.location.protocol.replace(':', '') as 'http' | 'https' : 'https',
@@ -69,7 +84,7 @@ export function initializeLivePreview(): void {
     });
 
     isInitialized = true;
-    console.log('✅ Live Preview: Visual Builder initialized');
+    console.log(`✅ Live Preview: Visual Builder initialized (editButton: ${EDIT_BUTTON_ENABLED})`);
   } catch (error) {
     console.error('❌ Live Preview: Failed to initialize:', error);
   }

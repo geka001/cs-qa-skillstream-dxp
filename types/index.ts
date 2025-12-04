@@ -17,6 +17,7 @@ export interface TeamConfig {
   // UI customization from Contentstack
   color?: string;        // Tailwind class e.g., 'bg-purple-500' or hex color
   icon?: string;         // Icon name or URL
+  logo?: string;         // Team logo URL from Contentstack assets
   // Visual Builder edit tags metadata (added by SDK)
   $?: Record<string, any>;
 }

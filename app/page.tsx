@@ -27,6 +27,11 @@ export default function HomePage() {
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="animate-pulse text-center">
+        <img 
+          src="https://images.contentstack.io/v3/assets/blt8202119c48319b1d/blt0719c05cb93fa636/6931bc63178ae2ee6634f01d/CS_OnlyLogo.webp"
+          alt="SkillStream Logo"
+          className="w-20 h-20 mx-auto mb-4 object-contain"
+        />
         <div className="text-4xl font-bold text-primary mb-4">SkillStream</div>
         <div className="text-muted-foreground">Loading...</div>
       </div>
