@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { AlertCircle, FileText, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
+import { getEditTagProps } from '@/lib/livePreview';
 
 interface SOPCardProps {
   sop: SOP;
@@ -46,7 +47,12 @@ export default function SOPCard({ sop, onView }: SOPCardProps) {
                   </Badge>
                 )}
               </div>
-              <CardTitle className="text-lg">{sop.title}</CardTitle>
+              <CardTitle 
+                className="text-lg"
+                {...(sop.uid ? getEditTagProps({ uid: sop.uid }, 'sop', 'title') : {})}
+              >
+                {sop.title}
+              </CardTitle>
               <CardDescription>{sop.steps.length} steps</CardDescription>
             </div>
           </div>

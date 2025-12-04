@@ -4,6 +4,7 @@ import Script from "next/script";
 import "./globals.css";
 import { AppProvider } from "@/contexts/AppContext";
 import { ManagerProvider } from "@/contexts/ManagerContext";
+import { LivePreviewProvider } from "@/contexts/LivePreviewContext";
 import { Toaster } from 'sonner';
 
 const inter = Inter({ subsets: ["latin"] });
@@ -41,12 +42,14 @@ export default function RootLayout({
         />
       </head>
       <body className={inter.className}>
-        <ManagerProvider>
-          <AppProvider>
-            {children}
-            <Toaster position="top-right" richColors />
-          </AppProvider>
-        </ManagerProvider>
+        <LivePreviewProvider>
+          <ManagerProvider>
+            <AppProvider>
+              {children}
+              <Toaster position="top-right" richColors />
+            </AppProvider>
+          </ManagerProvider>
+        </LivePreviewProvider>
       </body>
     </html>
   );

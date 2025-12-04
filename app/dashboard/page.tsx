@@ -26,7 +26,9 @@ import { Sparkles, TrendingUp, AlertCircle, BookOpen } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { trackEvent } from '@/lib/personalize';
-import { getDashboardPageContent, DashboardPageContent } from '@/lib/teamService';
+import { getDashboardPageContent, DashboardPageContent, PageEntry, clearDashboardCache } from '@/lib/teamService';
+import { getModularBlockEditTag } from '@/lib/livePreview';
+import { useLivePreview } from '@/contexts/LivePreviewContext';
 
 export default function DashboardPage() {
   const { user, completeModule, isLoggedIn } = useApp();
@@ -40,6 +42,10 @@ export default function DashboardPage() {
     onboardingStatusLabel: 'Onboarding Status',
     continueLearningHeading: 'Continue Learning',
   });
+  // Raw entry for Visual Builder edit tags
+  const [rawEntry, setRawEntry] = useState<(PageEntry & { $?: Record<string, any> }) | undefined>(undefined);
+  // Get content version for re-fetching when content changes in Visual Builder
+  const { contentVersion, isVisualBuilderMode } = useLivePreview();
   // Use ref to track if we've already shown notifications in this session
   const hasShownSegmentToast = useRef(false);
   const previousSegmentRef = useRef<string | null>(null);
@@ -52,9 +58,18 @@ export default function DashboardPage() {
 
     async function loadContent() {
       if (user) {
+        // Clear cache when in Visual Builder mode to get fresh content
+        if (isVisualBuilderMode && contentVersion > 0) {
+          clearDashboardCache();
+        }
+        
         // Fetch page content from Contentstack
         const dashboardContent = await getDashboardPageContent();
         setPageContent(dashboardContent);
+        // Store raw entry for Visual Builder edit tags
+        if (dashboardContent.rawEntry) {
+          setRawEntry(dashboardContent.rawEntry);
+        }
 
         const content = await getPersonalizedContentAsync(user.segment, user.completedModules, user.team);
         
@@ -88,7 +103,7 @@ export default function DashboardPage() {
     }
 
     loadContent();
-  }, [user, isLoggedIn, router]);
+  }, [user, isLoggedIn, router, contentVersion, isVisualBuilderMode]);
 
   const handleStartModule = (module: Module) => {
     // Track click event for Personalize analytics
@@ -171,7 +186,10 @@ export default function DashboardPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-2xl flex items-center gap-2">
+                <CardTitle 
+                  className="text-2xl flex items-center gap-2"
+                  {...(rawEntry ? getModularBlockEditTag(rawEntry, 'page', 0, 'hero_banner', 'heading') : {})}
+                >
                   <Sparkles className="w-6 h-6 text-primary" />
                   {pageContent.welcomeHeading}, {user.name}!
                 </CardTitle>
@@ -203,7 +221,12 @@ export default function DashboardPage() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">{pageContent.modulesCompletedLabel}</p>
+                <p 
+                  className="text-sm text-muted-foreground"
+                  {...(rawEntry ? getModularBlockEditTag(rawEntry, 'page', 1, 'hero_banner', 'heading') : {})}
+                >
+                  {pageContent.modulesCompletedLabel}
+                </p>
                 <p className="text-3xl font-bold text-primary">{completedModuleIds.length}</p>
               </div>
               <TrendingUp className="w-8 h-8 text-primary/50" />
@@ -252,7 +275,12 @@ export default function DashboardPage() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">{pageContent.onboardingStatusLabel}</p>
+                <p 
+                  className="text-sm text-muted-foreground"
+                  {...(rawEntry ? getModularBlockEditTag(rawEntry, 'page', 2, 'hero_banner', 'heading') : {})}
+                >
+                  {pageContent.onboardingStatusLabel}
+                </p>
                 <p className={`text-2xl font-bold ${onboardingReqs.overallComplete ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}`}>
                   {onboardingReqs.overallComplete ? 'Complete' : `${Math.round(onboardingReqs.overallPercentage)}%`}
                 </p>
@@ -271,7 +299,10 @@ export default function DashboardPage() {
       {nextRecommendedModule ? (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold flex items-center gap-2">
+            <h2 
+              className="text-2xl font-bold flex items-center gap-2"
+              {...(rawEntry ? getModularBlockEditTag(rawEntry, 'page', 3, 'hero_banner', 'heading') : {})}
+            >
               <BookOpen className="w-6 h-6 text-primary" />
               {pageContent.continueLearningHeading}
             </h2>

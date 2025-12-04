@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Wrench, ExternalLink, Boxes, CheckCircle2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { getEditTagProps } from '@/lib/livePreview';
 
 interface ToolCardProps {
   tool: Tool;
@@ -29,8 +30,18 @@ export default function ToolCard({ tool, isExplored, onExplore }: ToolCardProps)
             </div>
             <Badge variant="secondary">{tool.category}</Badge>
           </div>
-          <CardTitle className="text-lg">{tool.name}</CardTitle>
-          <CardDescription className="line-clamp-2">{tool.purpose}</CardDescription>
+          <CardTitle 
+            className="text-lg"
+            {...(tool.uid ? getEditTagProps({ uid: tool.uid }, 'tool', 'name') : {})}
+          >
+            {tool.name}
+          </CardTitle>
+          <CardDescription 
+            className="line-clamp-2"
+            {...(tool.uid ? getEditTagProps({ uid: tool.uid }, 'tool', 'purpose') : {})}
+          >
+            {tool.purpose}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">

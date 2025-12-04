@@ -38,6 +38,8 @@ const teamServiceStack = contentstack.stack({
 export interface HeroBanner {
   heading: string;
   description: string;
+  // Edit tag metadata from SDK (for Visual Builder)
+  $?: Record<string, any>;
 }
 
 // Stats block data interface
@@ -47,6 +49,8 @@ export interface StatsData {
   moduleCountLabel: string;     // e.g., "Training Modules"
   managerStatValue: string;     // e.g., "Real-time"
   managerStatLabel: string;     // e.g., "Progress Tracking"
+  // Edit tag metadata from SDK (for Visual Builder)
+  $?: Record<string, any>;
 }
 
 // Login page data interface (combines hero banners, teams, and stats)
@@ -55,6 +59,8 @@ export interface LoginPageData {
   cardBanner: HeroBanner;       // Card/form section hero banner (Get Started)
   teams: TeamConfig[];
   stats: StatsData;             // Stats section data
+  // Raw entry with $ metadata for Visual Builder edit tags
+  rawEntry?: PageEntry & { $?: Record<string, any> };
 }
 
 // Cache for login page data (avoid repeated API calls)
@@ -99,7 +105,7 @@ async function getPageUidByTitle(title: string): Promise<string | null> {
 }
 
 // Page entry interface for SDK typing
-interface PageEntry {
+export interface PageEntry {
   uid: string;
   title: string;
   modular_blocks?: Array<{
@@ -129,6 +135,8 @@ interface PageEntry {
       manager_stat_label?: string;    // e.g., "Progress Tracking"
     };
   }>;
+  // Visual Builder edit tags metadata (added by SDK when fetching with includeEmbeddedItems)
+  $?: Record<string, any>;
 }
 
 /**
@@ -236,7 +244,7 @@ export async function getLoginPageData(): Promise<LoginPageData> {
       }
     }
 
-    loginPageCache = { heroBanner, cardBanner, teams, stats };
+    loginPageCache = { heroBanner, cardBanner, teams, stats, rawEntry: entry };
     cacheTimestamp = Date.now();
     return loginPageCache;
   } catch (error) {
@@ -365,6 +373,8 @@ export interface DashboardPageContent {
   modulesCompletedLabel: string;
   onboardingStatusLabel: string;
   continueLearningHeading: string;
+  // Raw entry with $ metadata for Visual Builder edit tags
+  rawEntry?: PageEntry & { $?: Record<string, any> };
 }
 
 // Cache for dashboard page data
@@ -423,9 +433,9 @@ export async function getDashboardPageContent(): Promise<DashboardPageContent> {
       }
     }
 
-    dashboardPageCache = content;
+    dashboardPageCache = { ...content, rawEntry: entry };
     dashboardCacheTimestamp = Date.now();
-    return content;
+    return dashboardPageCache;
   } catch (error) {
     console.error('Error fetching dashboard page content from Contentstack:', error);
     return getDefaultDashboardContent();

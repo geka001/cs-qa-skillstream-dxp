@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Clock, Play, CheckCircle2, Lock, AlertCircle, Star, Trophy } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { getEditTagProps } from '@/lib/livePreview';
 
 interface ModuleCardProps {
   module: Module;
@@ -84,8 +85,17 @@ export default function ModuleCard({
               )}
             </div>
           </div>
-          <CardTitle className="text-lg line-clamp-2">{module.title}</CardTitle>
-          <CardDescription>{module.category}</CardDescription>
+          <CardTitle 
+            className="text-lg line-clamp-2"
+            {...(module.uid ? getEditTagProps({ uid: module.uid }, 'module', 'title') : {})}
+          >
+            {module.title}
+          </CardTitle>
+          <CardDescription
+            {...(module.uid ? getEditTagProps({ uid: module.uid }, 'module', 'category') : {})}
+          >
+            {module.category}
+          </CardDescription>
           
           {/* Module Order Badge */}
           {module.order && (

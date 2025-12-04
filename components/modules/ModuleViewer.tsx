@@ -9,6 +9,7 @@ import { X, Clock, Tag, Video, FileText, Play, MessageCircle } from 'lucide-reac
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '@/contexts/AppContext';
 import AITutor from '@/components/ai/AITutor';
+import { getEditTagProps } from '@/lib/livePreview';
 
 interface ModuleViewerProps {
   module: Module;
@@ -75,7 +76,12 @@ export default function ModuleViewer({ module, onClose, onStartQuiz }: ModuleVie
                   <Badge>{module.difficulty}</Badge>
                   {module.mandatory && <Badge variant="destructive">Required</Badge>}
                 </div>
-                <CardTitle className="text-2xl mb-2">{module.title}</CardTitle>
+                <CardTitle 
+                  className="text-2xl mb-2"
+                  {...(module.uid ? getEditTagProps({ uid: module.uid }, 'module', 'title') : {})}
+                >
+                  {module.title}
+                </CardTitle>
                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
                   <div className="flex items-center gap-1">
                     <Clock className="w-4 h-4" />
@@ -127,6 +133,7 @@ export default function ModuleViewer({ module, onClose, onStartQuiz }: ModuleVie
                 <div 
                   className="prose dark:prose-invert max-w-none"
                   dangerouslySetInnerHTML={{ __html: module.content }}
+                  {...(module.uid ? getEditTagProps({ uid: module.uid }, 'module', 'content') : {})}
                 />
               )}
 

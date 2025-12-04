@@ -17,6 +17,8 @@ export interface TeamConfig {
   // UI customization from Contentstack
   color?: string;        // Tailwind class e.g., 'bg-purple-500' or hex color
   icon?: string;         // Icon name or URL
+  // Visual Builder edit tags metadata (added by SDK)
+  $?: Record<string, any>;
 }
 
 // User profile interface
@@ -85,6 +87,7 @@ export interface OnboardingRequirements {
 // Module interface
 export interface Module {
   id: string;
+  uid?: string; // Contentstack entry UID for Visual Builder
   title: string;
   category: string;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
@@ -112,6 +115,7 @@ export interface QuizQuestion {
 // SOP (Standard Operating Procedure) interface
 export interface SOP {
   id: string;
+  uid?: string; // Contentstack entry UID for Visual Builder
   title: string;
   criticality: 'critical' | 'high' | 'medium' | 'low';
   steps: string[];
@@ -124,6 +128,7 @@ export interface SOP {
 // Tool interface
 export interface Tool {
   id: string;
+  uid?: string; // Contentstack entry UID for Visual Builder
   name: string;
   purpose: string;
   docsLink: string;

@@ -11,7 +11,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { GraduationCap, Rocket, Layers, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
 import { validateManagerCredentials } from '@/lib/managerAuth';
-import { getLoginPageData, HeroBanner, StatsData } from '@/lib/teamService';
+import { getLoginPageData, HeroBanner, StatsData, PageEntry, clearTeamsCache } from '@/lib/teamService';
+import { getModularBlockEditTag } from '@/lib/livePreview';
+import { useLivePreview } from '@/contexts/LivePreviewContext';
 
 type UserType = 'qa' | 'manager';
 
@@ -53,20 +55,34 @@ export default function LoginPage() {
     managerStatLabel: 'Progress Tracking',
   });
   const [pageLoading, setPageLoading] = useState(true);
+  // Raw entry for Visual Builder edit tags
+  const [rawEntry, setRawEntry] = useState<(PageEntry & { $?: Record<string, any> }) | undefined>(undefined);
   const { setUser, isLoading } = useApp();
+  // Get content version for re-fetching when content changes in Visual Builder
+  const { contentVersion, isVisualBuilderMode } = useLivePreview();
   const { login: managerLogin } = useManager();
   const router = useRouter();
 
   // Fetch login page data (hero banners + teams + stats) from Contentstack on mount
+  // Re-fetch when contentVersion changes (content updated in Visual Builder)
   useEffect(() => {
     async function loadPageData() {
       setPageLoading(true);
       try {
+        // Clear cache when in Visual Builder mode to get fresh content
+        if (isVisualBuilderMode && contentVersion > 0) {
+          clearTeamsCache();
+        }
+        
         const pageData = await getLoginPageData();
         setHeroBanner(pageData.heroBanner);
         setCardBanner(pageData.cardBanner);
         setTeams(pageData.teams);
         setStats(pageData.stats);
+        // Store raw entry for Visual Builder edit tags
+        if (pageData.rawEntry) {
+          setRawEntry(pageData.rawEntry);
+        }
         // Set default selection to first team
         if (pageData.teams.length > 0 && !selectedTeam) {
           setSelectedTeam(pageData.teams[0].team);
@@ -78,7 +94,7 @@ export default function LoginPage() {
       }
     }
     loadPageData();
-  }, []);
+  }, [contentVersion, isVisualBuilderMode]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,13 +195,19 @@ export default function LoginPage() {
           </div>
           
           <div className="space-y-4">
-            <h2 className="text-3xl font-bold text-foreground">
+            <h2 
+              className="text-3xl font-bold text-foreground"
+              {...(userType === 'qa' && rawEntry ? getModularBlockEditTag(rawEntry, 'page', 0, 'hero_banner', 'heading') : {})}
+            >
               {userType === 'qa' 
                 ? heroBanner.heading
                 : 'Monitor Your Team\'s Progress'
               }
             </h2>
-            <p className="text-lg text-muted-foreground">
+            <p 
+              className="text-lg text-muted-foreground"
+              {...(userType === 'qa' && rawEntry ? getModularBlockEditTag(rawEntry, 'page', 0, 'hero_banner', 'description') : {})}
+            >
               {userType === 'qa'
                 ? heroBanner.description
                 : 'View real-time onboarding progress, identify at-risk team members, and track completion rates across your QA team.'
@@ -196,13 +218,24 @@ export default function LoginPage() {
           <div className="grid grid-cols-2 gap-4 pt-4">
             <div className="p-4 bg-card rounded-lg border">
               <div className="text-3xl font-bold text-primary">{teams.length || 4}</div>
-              <div className="text-sm text-muted-foreground">{stats.teamCountLabel}</div>
+              <div 
+                className="text-sm text-muted-foreground"
+                {...(rawEntry ? getModularBlockEditTag(rawEntry, 'page', 3, 'stats', 'team_count_label') : {})}
+              >
+                {stats.teamCountLabel}
+              </div>
             </div>
             <div className="p-4 bg-card rounded-lg border">
-              <div className="text-3xl font-bold text-primary">
+              <div 
+                className="text-3xl font-bold text-primary"
+                {...(rawEntry && userType === 'qa' ? getModularBlockEditTag(rawEntry, 'page', 3, 'stats', 'module_count_value') : {})}
+              >
                 {userType === 'qa' ? stats.moduleCountValue : stats.managerStatValue}
               </div>
-              <div className="text-sm text-muted-foreground">
+              <div 
+                className="text-sm text-muted-foreground"
+                {...(rawEntry && userType === 'qa' ? getModularBlockEditTag(rawEntry, 'page', 3, 'stats', 'module_count_label') : {})}
+              >
                 {userType === 'qa' ? stats.moduleCountLabel : stats.managerStatLabel}
               </div>
             </div>
@@ -212,11 +245,16 @@ export default function LoginPage() {
         {/* Right side - Login Form */}
         <Card className="w-full shadow-2xl">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl flex items-center gap-2">
+            <CardTitle 
+              className="text-2xl flex items-center gap-2"
+              {...(rawEntry ? getModularBlockEditTag(rawEntry, 'page', 1, 'hero_banner', 'heading') : {})}
+            >
               <Rocket className="w-6 h-6 text-primary" />
               {cardBanner.heading}
             </CardTitle>
-            <CardDescription>
+            <CardDescription
+              {...(userType === 'qa' && rawEntry ? getModularBlockEditTag(rawEntry, 'page', 1, 'hero_banner', 'description') : {})}
+            >
               {userType === 'qa'
                 ? cardBanner.description
                 : 'Select your team and enter credentials to view team progress'
