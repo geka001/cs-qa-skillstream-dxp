@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '@/contexts/AppContext';
 import AITutor from '@/components/ai/AITutor';
 import { getEditTagProps } from '@/lib/livePreview';
+import { triggerImpressionForTeam } from '@/lib/personalize';
 import { marked } from 'marked';
 
 // Configure marked for safe rendering
@@ -70,16 +71,39 @@ interface ModuleViewerProps {
 export default function ModuleViewer({ module, onClose, onStartQuiz }: ModuleViewerProps) {
   const [activeTab, setActiveTab] = useState<'content' | 'video'>('content');
   const [showAITutor, setShowAITutor] = useState(false);
-  const { markContentRead, markVideoWatched } = useApp();
+  const { markContentRead, markVideoWatched, user } = useApp();
   
   // Use refs to track if actions have been performed
   const contentReadRef = useRef(false);
   const videoWatchedRef = useRef(false);
+  const impressionTriggeredRef = useRef(false);
   
   // Parse markdown content to HTML (memoized to avoid re-parsing)
   const parsedContent = useMemo(() => {
     return parseContent(module.content);
   }, [module.content]);
+
+  // Trigger impression for HIGH_FLYER variant content
+  // According to Contentstack docs: trigger impression when content is rendered
+  // https://www.contentstack.com/docs/personalize/setup-nextjs-website-with-personalize-launch
+  useEffect(() => {
+    // Only trigger if:
+    // 1. User is HIGH_FLYER segment
+    // 2. Module targets HIGH_FLYER (is variant content)
+    // 3. Impression hasn't been triggered yet
+    const isHighFlyerContent = module.targetSegments?.includes('HIGH_FLYER');
+    const isHighFlyerUser = user?.segment === 'HIGH_FLYER';
+    
+    if (isHighFlyerUser && isHighFlyerContent && !impressionTriggeredRef.current && user?.team) {
+      impressionTriggeredRef.current = true;
+      // Trigger impression for the user's team experience
+      triggerImpressionForTeam(user.team).then((success) => {
+        if (success) {
+          console.log(`✅ Triggered impression for ${user.team} HIGH_FLYER content: ${module.title}`);
+        }
+      });
+    }
+  }, [module, user]);
 
   // Track content reading - mark as read after 15 seconds
   useEffect(() => {
@@ -107,23 +131,23 @@ export default function ModuleViewer({ module, onClose, onStartQuiz }: ModuleVie
   }, [activeTab, module.id, module.videoUrl, markVideoWatched]);
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-4xl my-8 max-h-[90vh] overflow-y-auto"
+        className="w-full max-w-4xl max-h-[90vh] flex flex-col"
       >
-        <Card className="relative">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute right-4 top-4 z-10 bg-background/80 backdrop-blur-sm hover:bg-background"
-            onClick={onClose}
-          >
-            <X className="w-5 h-5" />
-          </Button>
-
-          <CardHeader className="border-b">
+        <Card className="relative flex flex-col h-full overflow-hidden">
+          {/* Sticky Header */}
+          <CardHeader className="border-b sticky top-0 bg-card z-20 flex-shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-4 top-4 z-10 bg-background/80 backdrop-blur-sm hover:bg-background"
+              onClick={onClose}
+            >
+              <X className="w-5 h-5" />
+            </Button>
             <div className="flex items-start gap-4 pr-12">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
@@ -151,9 +175,10 @@ export default function ModuleViewer({ module, onClose, onStartQuiz }: ModuleVie
             </div>
           </CardHeader>
 
-          <CardContent className="p-0">
+          {/* Scrollable Content Area */}
+          <CardContent className="p-0 flex-1 overflow-y-auto">
             {/* Tabs */}
-            <div className="border-b">
+            <div className="border-b sticky top-0 bg-card z-10">
               <div className="flex">
                 <button
                   onClick={() => setActiveTab('content')}
@@ -232,39 +257,39 @@ export default function ModuleViewer({ module, onClose, onStartQuiz }: ModuleVie
                 ))}
               </div>
             </div>
+          </CardContent>
 
-            {/* Quiz Section */}
-            <div className="border-t bg-secondary/30 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold mb-1">Ready to test your knowledge?</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {module.quiz?.length 
-                      ? `Take the quiz to complete this module (${module.quiz.length} questions)` 
-                      : 'Quiz content is being prepared and will be available soon'}
-                  </p>
-                </div>
-                <div className="flex gap-3">
-                  <Button 
-                    size="lg" 
-                    variant="outline"
-                    onClick={() => setShowAITutor(true)}
-                  >
-                    <MessageCircle className="w-4 h-4 mr-2" />
-                    Ask AI Tutor
-                  </Button>
-                  <Button 
-                    size="lg" 
-                    onClick={onStartQuiz}
-                    disabled={!module.quiz?.length}
-                  >
-                    <Play className="w-4 h-4 mr-2" />
-                    Start Quiz
-                  </Button>
-                </div>
+          {/* Sticky Footer - Quiz Section */}
+          <div className="border-t bg-secondary/30 p-6 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold mb-1">Ready to test your knowledge?</h3>
+                <p className="text-sm text-muted-foreground">
+                  {module.quiz?.length 
+                    ? `Take the quiz to complete this module (${module.quiz.length} questions)` 
+                    : 'Quiz content is being prepared and will be available soon'}
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <Button 
+                  size="lg" 
+                  variant="outline"
+                  onClick={() => setShowAITutor(true)}
+                >
+                  <MessageCircle className="w-4 h-4 mr-2" />
+                  Ask AI Tutor
+                </Button>
+                <Button 
+                  size="lg" 
+                  onClick={onStartQuiz}
+                  disabled={!module.quiz?.length}
+                >
+                  <Play className="w-4 h-4 mr-2" />
+                  Start Quiz
+                </Button>
               </div>
             </div>
-          </CardContent>
+          </div>
         </Card>
       </motion.div>
 

@@ -1,6 +1,10 @@
 /**
  * Contentstack Service Layer
  * Handles all API calls to Contentstack Delivery API using the TypeScript Delivery SDK
+ * 
+ * Variant Delivery:
+ * - Uses Personalize SDK to determine which variants to show based on user attributes
+ * - Passes variant aliases to Delivery SDK for fetching personalized content
  */
 
 import { getStack, isSDKEnabled, isContentstackEnabled, isSDKConfigured, ContentstackConfig } from './contentstackSDK';
@@ -60,11 +64,143 @@ function normalizeSegment(segment: string): UserSegment {
 }
 
 // ============================================================
-// VARIANT SUPPORT
+// VARIANT SUPPORT - 100% Dynamic from Personalize SDK
 // ============================================================
 
 /**
- * Check if an entry has a single team (potential variant candidate)
+ * Variant delivery uses the Personalize SDK's getVariantAliases() method.
+ * 
+ * NO HARDCODED VALUES - everything comes from the SDK dynamically!
+ * 
+ * How it works:
+ * 1. User attributes are set via setPersonalizeAttributes()
+ * 2. Personalize SDK evaluates audience rules and determines active experiences
+ * 3. getVariantAliases() returns aliases in format: cs_personalize_<exp_short_uid>_<variant_short_uid>
+ * 4. These aliases work directly with the Delivery API x-cs-variant-uid header
+ * 
+ * If SDK doesn't return aliases on first try, we retry with reinitialization.
+ */
+
+/**
+ * Get variant aliases from Personalize SDK with retry mechanism
+ * 
+ * The Personalize SDK's getVariantAliases() returns aliases in format:
+ * cs_personalize_<experience_short_uid>_<variant_short_uid>
+ * 
+ * These aliases work DIRECTLY with the Delivery API's x-cs-variant-uid header!
+ * 
+ * @param team - User's team (for logging)
+ * @param segment - User's segment (ROOKIE, AT_RISK, HIGH_FLYER)
+ * @returns Promise<string> - Comma-separated variant aliases or empty string
+ */
+async function getVariantAliasesFromPersonalize(team: string, segment: string): Promise<string> {
+  // Only HIGH_FLYER users get variant content
+  if (segment !== 'HIGH_FLYER') {
+    console.log(`📦 Skipping variants for ${segment} user (not HIGH_FLYER)`);
+    return '';
+  }
+
+  // Personalize SDK only works client-side
+  if (typeof window === 'undefined') {
+    console.log(`📦 Server-side rendering - no variant aliases available`);
+    return '';
+  }
+
+  try {
+    const { getVariantAliases, reinitializeAndGetAliases } = await import('./personalize');
+    
+    // First attempt: Get aliases from SDK
+    let aliases = await getVariantAliases();
+    
+    if (aliases && aliases.length > 0) {
+      console.log(`✅ Got variant aliases from Personalize SDK for ${team}: ${aliases.join(', ')}`);
+      return aliases.join(',');
+    }
+    
+    // Second attempt: Reinitialize SDK and try again
+    console.log(`📦 No aliases on first try, reinitializing Personalize SDK for ${team}...`);
+    aliases = await reinitializeAndGetAliases();
+    
+    if (aliases && aliases.length > 0) {
+      console.log(`✅ Got variant aliases after reinit for ${team}: ${aliases.join(', ')}`);
+      return aliases.join(',');
+    }
+    
+    console.log(`📦 No variant aliases from SDK for ${team} ${segment} after retry`);
+    return '';
+    
+  } catch (error) {
+    console.warn('⚠️ Could not get variants from Personalize SDK:', error);
+    return '';
+  }
+}
+
+// Cache for variant state
+let cachedVariantUids: string | null = null;
+let cachedTeam: string | null = null;
+let cachedSegment: string | null = null;
+
+/**
+ * Clear the variant cache (call when user attributes change)
+ */
+export function clearVariantAliasCache(): void {
+  cachedVariantUids = null;
+  cachedTeam = null;
+  cachedSegment = null;
+  console.log('🔄 Variant cache cleared');
+}
+
+// REST API configuration for variant fetching
+const REST_CONFIG = {
+  apiKey: process.env.NEXT_PUBLIC_CONTENTSTACK_API_KEY || '',
+  deliveryToken: process.env.NEXT_PUBLIC_CONTENTSTACK_DELIVERY_TOKEN || '',
+  environment: process.env.NEXT_PUBLIC_CONTENTSTACK_ENVIRONMENT || 'dev',
+  baseUrl: 'https://cdn.contentstack.io/v3'
+};
+
+/**
+ * Fetch entries using REST API with x-cs-variant-uid header
+ * This is needed because the SDK's .variants() method only works with single entry .fetch()
+ * For .find() queries with variants, we must use the REST API directly
+ */
+async function fetchEntriesWithVariants<T>(contentTypeUid: string, variantAliases: string): Promise<T[]> {
+  try {
+    const url = `${REST_CONFIG.baseUrl}/content_types/${contentTypeUid}/entries?environment=${REST_CONFIG.environment}`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'api_key': REST_CONFIG.apiKey,
+        'access_token': REST_CONFIG.deliveryToken,
+        'x-cs-variant-uid': variantAliases,  // THIS is the key header for variants!
+        'Content-Type': 'application/json'
+      },
+      cache: 'no-store'
+    });
+
+    if (!response.ok) {
+      console.error(`❌ REST API error fetching ${contentTypeUid}:`, response.status);
+      return [];
+    }
+
+    const data = await response.json();
+    const entries = data.entries || [];
+    
+    // Log variant info if present
+    entries.forEach((entry: any) => {
+      if (entry._variant) {
+        console.log(`✨ Entry "${entry.title}" returned with variant: ${entry._variant._uid}`);
+      }
+    });
+    
+    return entries;
+  } catch (error) {
+    console.error('Error in fetchEntriesWithVariants:', error);
+    return [];
+  }
+}
+
+/**
+ * Check if an entry has a single team (used for filtering)
  */
 function hasSingleTeam(entry: { target_teams?: string; team_taxonomy?: string[] }): boolean {
   if (Array.isArray(entry.team_taxonomy) && entry.team_taxonomy.length === 1) {
@@ -100,102 +236,28 @@ function getTeamFromEntry(entry: { target_teams?: string; team_taxonomy?: string
 }
 
 /**
- * Fetch variants for an entry from Management API
- * Uses API route to keep Management Token server-side
+ * @deprecated Use getVariantAliasesForDelivery() instead
+ * Kept for backwards compatibility - will be removed in future version
  */
 async function fetchVariantsForEntry(entryUid: string): Promise<any[]> {
-  try {
-    const isServer = typeof window === 'undefined';
-    const baseUrl = isServer ? 'http://localhost:3000' : '';
-    
-    const response = await fetch(`${baseUrl}/api/variants/${entryUid}`, {
-      cache: 'no-store',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    
-    if (!response.ok) return [];
-    
-    const data = await response.json();
-    return data.variants || [];
-  } catch (error) {
-    return [];
-  }
+  console.warn('⚠️ fetchVariantsForEntry is deprecated. Using Personalize SDK for variants.');
+  return [];
 }
 
 /**
- * Find matching variant for user's segment
+ * @deprecated Variant matching is now handled by Personalize SDK
  */
 function findVariantForSegment(variants: any[], userSegment: UserSegment): any | null {
-  if (!variants || variants.length === 0) return null;
-  
-  const normalizedSegment = userSegment.toUpperCase().replace(/\s+/g, '_');
-  
-  for (const variant of variants) {
-    const targetSegments = variant.target_segments;
-    
-    if (targetSegments) {
-      try {
-        const segments = typeof targetSegments === 'string' 
-          ? JSON.parse(targetSegments) 
-          : targetSegments;
-        
-        if (Array.isArray(segments)) {
-          const match = segments.some((s: string) => {
-            const normalizedS = s.toUpperCase().replace(/\s+/g, '_');
-            return normalizedS === normalizedSegment;
-          });
-          if (match) return variant;
-        }
-      } catch (e) {
-        // Skip invalid variant
-      }
-    }
-  }
-  
+  console.warn('⚠️ findVariantForSegment is deprecated. Personalize SDK handles variant matching.');
   return null;
 }
 
 /**
- * Merge variant data into base entry
+ * @deprecated Variant merging is now handled by Delivery SDK
  */
 function mergeVariantIntoEntry(baseEntry: any, variant: any): any {
-  if (!variant) return baseEntry;
-  
-  const changeSet = variant._variant?._change_set || [];
-  const merged = { ...baseEntry };
-  
-  for (const field of changeSet) {
-    if (variant[field] !== undefined) {
-      merged[field] = variant[field];
-    }
-  }
-  
-  if (variant.title) merged.title = variant.title;
-  
-  merged._isVariant = true;
-  merged._variantUid = variant._variant?._uid;
-  
-  return merged;
-}
-
-// Legacy functions (keeping for backwards compatibility)
-function getVariantForSegment(segment: UserSegment): string {
-  const variantMap: Record<UserSegment, string> = {
-    'ROOKIE': 'rookie_version',
-    'AT_RISK': 'at_risk_version',
-    'HIGH_FLYER': 'high_flyer_version'
-  };
-  return variantMap[segment] || 'rookie_version';
-}
-
-function extractVariantContent(field: any, variantKey: string): string {
-  if (field && typeof field === 'object' && !Array.isArray(field)) {
-    if (field[variantKey]) return field[variantKey];
-    if (field._default) return field._default;
-    if (field.rookie_version) return field.rookie_version;
-  }
-  if (typeof field === 'string') return field;
-  return '';
+  console.warn('⚠️ mergeVariantIntoEntry is deprecated. Delivery SDK handles variant content.');
+  return baseEntry;
 }
 
 // ============================================================
@@ -481,6 +543,11 @@ interface ModuleEntry {
   difficulty?: string;
   target_teams?: string;
   target_segments?: string;
+  // Variant information (added by Delivery SDK when variant aliases are used)
+  _variant?: {
+    _uid: string;
+    _change_set?: string[];
+  };
 }
 
 interface QuizEntry {
@@ -503,13 +570,28 @@ export async function getCsModules(userTeam: Team, userSegment: UserSegment): Pr
   }
 
   try {
-    // Fetch modules using SDK
-    const moduleResult = await stack
-      .contentType('qa_training_module')
-      .entry()
-      .find<ModuleEntry>();
-
-    const entries = (moduleResult as any).entries || [];
+    // Get variant aliases from Personalize SDK (format: cs_personalize_<exp>_<variant>)
+    // HIGH_FLYER users get personalized variant content based on their experience
+    const variantAliases = await getVariantAliasesFromPersonalize(userTeam, userSegment);
+    
+    let entries: ModuleEntry[] = [];
+    
+    if (variantAliases) {
+      // Use REST API with x-cs-variant-uid header to fetch variant content
+      // The alias format cs_personalize_X_Y works directly with Delivery API!
+      console.log(`📦 Fetching modules for ${userTeam} ${userSegment} with variant aliases: ${variantAliases}`);
+      entries = await fetchEntriesWithVariants('qa_training_module', variantAliases);
+      console.log(`📚 Fetched ${entries.length} module entries (with variant content)`);
+    } else {
+      // Regular users (ROOKIE, AT_RISK) - fetch via SDK without variants
+      console.log(`📦 Fetching modules for ${userTeam} ${userSegment} (no variants)`);
+      const moduleResult = await stack
+        .contentType('qa_training_module')
+        .entry()
+        .find<ModuleEntry>();
+      entries = (moduleResult as any).entries || [];
+      console.log(`📚 Fetched ${entries.length} module entries`);
+    }
 
     // Fetch ALL quiz items using SDK
     const quizResult = await stack
@@ -531,8 +613,8 @@ export async function getCsModules(userTeam: Team, userSegment: UserSegment): Pr
       };
     });
 
-    // Process entries with variant checking
-    const processedEntries: ModuleEntry[] = [];
+    // Filter entries by team and segment
+    const filteredEntries: ModuleEntry[] = [];
     
     for (const entry of entries) {
       const targetTeams = entry.team_taxonomy || safeJsonParse<string[]>(entry.target_teams, []);
@@ -540,36 +622,25 @@ export async function getCsModules(userTeam: Team, userSegment: UserSegment): Pr
       const userTeamTerm = mapToTaxonomyTerm(userTeam);
       const userSegmentTerm = mapToTaxonomyTerm(userSegment);
       
-      const teamMatch = targetTeams.length > 0 && taxonomyIncludes(targetTeams, userTeamTerm);
+      // Check team match
+      const teamMatch = targetTeams.length === 0 || taxonomyIncludes(targetTeams, userTeamTerm);
       if (!teamMatch) continue;
       
-      const isSingleTeam = hasSingleTeam(entry);
+      // Check segment match
+      // When variant content is returned, the entry's target_segments will be updated
+      // to match the variant (e.g., HIGH_FLYER instead of ROOKIE)
+      const segmentMatch = targetSegments.length === 0 || taxonomyIncludes(targetSegments, userSegmentTerm);
       
-      if (isSingleTeam) {
-        const variants = await fetchVariantsForEntry(entry.uid);
-        
-        if (variants.length > 0) {
-          const matchingVariant = findVariantForSegment(variants, userSegment);
-          if (matchingVariant) {
-            const mergedEntry = mergeVariantIntoEntry(entry, matchingVariant);
-            processedEntries.push(mergedEntry);
-            continue;
-          }
+      if (teamMatch && segmentMatch) {
+        // Log if this entry has variant content applied
+        if (entry._variant) {
+          console.log(`✨ Module "${entry.title}" has variant: ${entry._variant._uid}`);
         }
-        
-        const segmentMatch = targetSegments.length > 0 && taxonomyIncludes(targetSegments, userSegmentTerm);
-        if (segmentMatch) {
-          processedEntries.push(entry);
-        }
-      } else {
-        const segmentMatch = targetSegments.length > 0 && taxonomyIncludes(targetSegments, userSegmentTerm);
-        if (teamMatch && segmentMatch) {
-          processedEntries.push(entry);
-        }
+        filteredEntries.push(entry);
       }
     }
 
-    const modules = processedEntries.map(entry => {
+    const modules = filteredEntries.map(entry => {
       const quizItemIds = safeJsonParse<string[]>(entry.quiz_items, []);
       
       const quiz = quizItemIds
@@ -604,7 +675,9 @@ export async function getCsModules(userTeam: Team, userSegment: UserSegment): Pr
         quiz: quiz,
         targetSegments: targetSegments,
         targetTeams: targetTeams,
-        tags: safeJsonParse<string[]>(entry.module_tags, [])
+        tags: safeJsonParse<string[]>(entry.module_tags, []),
+        // Include variant info if available
+        ...(entry._variant && { _isVariant: true, _variantUid: entry._variant._uid })
       };
     });
     

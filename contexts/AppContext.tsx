@@ -8,6 +8,7 @@ import { getUserByNameAndTeam, createUser, updateUser } from '@/lib/userService'
 import { calculateOnboardingRequirements } from '@/lib/onboarding';
 import OnboardingCompleteModal from '@/components/modals/OnboardingCompleteModal';
 import { setPersonalizeAttributes, initializePersonalize, trackEvent } from '@/lib/personalize';
+import { clearVariantAliasCache } from '@/lib/contentstack';
 import { notifyOnboardingComplete, notifyQuizFailure, notifyAtRiskRecovery } from '@/lib/slackNotifications';
 import { getPersonalizedContent } from '@/data/mockData';
 
@@ -186,7 +187,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         // Load existing user from Contentstack
         setUserState(userToSet);
         
-        // Pre-populate cache for the user's current segment
+        // IMPORTANT: Set Personalize attributes BEFORE fetching content
+        // This ensures variant aliases are available when fetching modules
+        if (userToSet.team) {
+          clearVariantAliasCache();
+          await setPersonalizeAttributes({
+            QA_LEVEL: userToSet.segment,
+            TEAM_NAME: userToSet.team
+          });
+          // Small delay to allow SDK to process attributes
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        // Pre-populate cache for the user's current segment (after attributes are set)
         await getPersonalizedContentAsync(userToSet.segment, userToSet.completedModules, userToSet.team);
         
         // Check onboarding completion for returning user (after cache is populated)
@@ -203,20 +216,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           lastActivity: new Date().toISOString(),
           segmentHistory: userToSet.segmentHistory || []
         });
-        
-        // Send user attributes to Personalize for analytics tracking
-        if (userToSet.team) {
-          setPersonalizeAttributes({
-            QA_LEVEL: userToSet.segment,
-            TEAM_NAME: userToSet.team
-          });
-        }
       } else {
         // Create new user in Contentstack
         await createUser(newUser);
         setUserState(newUser);
         
-        // Pre-populate cache for new user
+        // IMPORTANT: Set Personalize attributes BEFORE fetching content
+        if (newUser.team) {
+          clearVariantAliasCache();
+          await setPersonalizeAttributes({
+            QA_LEVEL: newUser.segment,
+            TEAM_NAME: newUser.team
+          });
+        }
+        
+        // Pre-populate cache for new user (after attributes are set)
         const { getPersonalizedContentAsync } = await import('@/data/mockData');
         await getPersonalizedContentAsync('ROOKIE', [], newUser.team);
         
@@ -227,14 +241,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           lastActivity: new Date().toISOString(),
           segmentHistory: [{ segment: newUser.segment, date: new Date().toISOString() }]
         });
-        
-        // Send user attributes to Personalize for analytics tracking
-        if (newUser.team) {
-          setPersonalizeAttributes({
-            QA_LEVEL: newUser.segment,
-            TEAM_NAME: newUser.team
-          });
-        }
       }
     } catch (error) {
       console.error('Error in setUser:', error);
@@ -385,7 +391,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateSegment = (segment: UserSegment) => {
+  const updateSegment = async (segment: UserSegment) => {
     if (!user) return;
 
     const previousSegment = user.segment;
@@ -412,12 +418,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       toast.error('Your manager has been notified about your learning progress.');
     }
     
-    // Update Personalize attributes when segment changes
+    // Update Personalize attributes FIRST when segment changes
+    // This ensures variant aliases are available when content is re-fetched
     if (user.team) {
-      setPersonalizeAttributes({
+      clearVariantAliasCache();
+      await setPersonalizeAttributes({
         QA_LEVEL: segment,
         TEAM_NAME: user.team
       });
+      // Small delay to allow SDK to process attributes
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
   };
 

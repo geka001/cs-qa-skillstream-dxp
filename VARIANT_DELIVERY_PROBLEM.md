@@ -4,6 +4,8 @@
 
 This document explains the gap discovered between Contentstack Personalize SDK and the Delivery SDK when implementing personalized variant content delivery.
 
+> **✅ SOLUTION FOUND**: The gap has been bridged using `getVariantAliases()` from the Personalize SDK! See the [Solution](#solution-using-variant-aliases) section below.
+
 ---
 
 ## The Expected Flow (How It Should Work)
@@ -242,19 +244,117 @@ const deliveryVariants = await sdk.getDeliveryVariants();
 
 ---
 
+---
+
+## Solution: Using Variant Aliases
+
+### The Discovery
+
+The Personalize SDK's `getVariantAliases()` method returns **auto-generated aliases** in the format:
+
+```
+cs_personalize_<experience_short_uid>_<variant_short_uid>
+```
+
+These aliases work **DIRECTLY** with the Delivery API's `x-cs-variant-uid` header!
+
+### Verified Working Example
+
+```bash
+# Using variant alias (WORKS!)
+curl "https://cdn.contentstack.io/v3/content_types/qa_training_module/entries/blt25efa166fab8cd74?environment=dev" \
+  -H "api_key: YOUR_API_KEY" \
+  -H "access_token: YOUR_DELIVERY_TOKEN" \
+  -H "x-cs-variant-uid: cs_personalize_9_0"
+
+# Result: Returns variant content!
+{
+  "title": "From Personalize Variant: Introduction to Contentstack Launch",
+  "target_segments": "[\"HIGH_FLYER\"]"
+}
+```
+
+### Working Alias Format for All Teams
+
+| Team | Experience Short UID | Variant Alias | ✅ Verified |
+|------|---------------------|---------------|-------------|
+| Launch | `9` | `cs_personalize_9_0` | ✅ |
+| DAM | `c` | `cs_personalize_c_0` | ✅ |
+| Data & Insights | `d` | `cs_personalize_d_0` | ✅ |
+| AutoDraft | `e` | `cs_personalize_e_0` | ✅ |
+
+### The Correct Implementation
+
+```typescript
+// 1. Get variant aliases from Personalize SDK
+const aliases = await sdk.getVariantAliases();
+// Returns: ['cs_personalize_9_0']
+
+// 2. Use aliases directly with Delivery API
+fetch(url, {
+  headers: {
+    'x-cs-variant-uid': aliases.join(',')
+  }
+});
+// Returns: Personalized variant content!
+```
+
+### Benefits of This Approach
+
+- ✅ **No Management API needed** - Uses only Personalize SDK + Delivery API
+- ✅ **No hardcoded values** - Aliases are auto-generated
+- ✅ **Dynamic** - Adding new experiences/variants requires NO code changes
+- ✅ **Simple** - Just call `getVariantAliases()` and use the result
+
+---
+
 ## Summary
 
-### The Problem
+### The Problem (Original)
 
-There's no direct path from Personalize SDK's experience/variant information to the actual Variant UID needed by the Delivery API.
+There was no obvious path from Personalize SDK's experience/variant information to the actual Variant UID needed by the Delivery API.
 
-### Current Workaround
+### The Solution
 
-Use Management API server-side to discover and cache the variant UID mappings.
+Use `getVariantAliases()` from the Personalize SDK! It returns auto-generated aliases in format `cs_personalize_<exp>_<variant>` that work directly with the Delivery API's `x-cs-variant-uid` header.
 
-### Recommended Solution
+### Key Code Changes
 
-Configure variant aliases in Contentstack Personalize dashboard, which would allow `getVariantAliases()` to return values that work directly with the Delivery SDK.
+| File | Change |
+|------|--------|
+| `lib/contentstack.ts` | Uses `getVariantAliases()` instead of hardcoded variant UIDs |
+| `lib/personalize.ts` | Added `getExperiences()`, `triggerImpressionForTeam()`, simplified alias handling |
+| `components/modules/ModuleViewer.tsx` | Added proper `triggerImpression` call when variant content is rendered |
+| `app/api/variants/config/route.ts` | **DEPRECATED** - No longer needed |
+
+### Proper Impression Tracking
+
+According to the [official documentation](https://www.contentstack.com/docs/personalize/setup-nextjs-website-with-personalize-launch):
+
+> "We are using useEffect in this example so that the impression is triggered only on the first render of the component"
+
+**Correct Usage (in ModuleViewer.tsx):**
+
+```typescript
+useEffect(() => {
+  const isHighFlyerContent = module.targetSegments?.includes('HIGH_FLYER');
+  const isHighFlyerUser = user?.segment === 'HIGH_FLYER';
+  
+  if (isHighFlyerUser && isHighFlyerContent && !impressionTriggeredRef.current) {
+    impressionTriggeredRef.current = true;
+    // Trigger when variant content is RENDERED
+    triggerImpressionForTeam(user.team);
+  }
+}, [module, user]);
+```
+
+**Wrong Usage (previously in setPersonalizeAttributes):**
+
+```typescript
+// ❌ DON'T trigger when setting attributes - content not rendered yet!
+await sdk.set(attributes);
+await sdk.triggerImpression(experienceUid); // WRONG!
+```
 
 ---
 
@@ -262,15 +362,16 @@ Configure variant aliases in Contentstack Personalize dashboard, which would all
 
 | File | Purpose |
 |------|---------|
-| `lib/personalize.ts` | Personalize SDK integration |
-| `lib/contentstack.ts` | Delivery SDK with variant support |
-| `app/api/variants/config/route.ts` | Dynamic variant config API (uses Management API) |
+| `lib/personalize.ts` | Personalize SDK integration with `getVariantAliases()` |
+| `lib/contentstack.ts` | Delivery SDK with variant alias support |
+| `app/api/variants/config/route.ts` | **DEPRECATED** - Dynamic config API (was using Management API) |
 
 ---
 
 ## References
 
 - [Contentstack Personalize Edge SDK](https://www.contentstack.com/docs/developers/sdks/personalize-edge-sdk/)
+- [Dynamically Track Variant Impressions](https://www.contentstack.com/docs/personalize/dynamically-track-variant-impressions) - **Key documentation that revealed the solution**
 - [Contentstack Delivery API](https://www.contentstack.com/docs/developers/apis/content-delivery-api/)
-- [Contentstack Management API - Variants](https://www.contentstack.com/docs/developers/apis/content-management-api/)
+- [Personalize Glossary - Variant Aliases](https://www.contentstack.com/docs/personalize/glossary-key-features)
 

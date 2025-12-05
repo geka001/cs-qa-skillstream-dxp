@@ -4,6 +4,17 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 /**
+ * @deprecated This API route is deprecated. Use Personalize SDK for variant delivery instead.
+ * 
+ * The app now uses:
+ * 1. Personalize SDK's getVariantAliases() to determine which variants to show
+ * 2. Delivery SDK's .variants() method to fetch personalized content
+ * 
+ * This route is kept for backwards compatibility and debugging purposes only.
+ * See lib/personalize.ts and lib/contentstack.ts for the new implementation.
+ * 
+ * ---
+ * 
  * API Route: Fetch variants for a specific entry
  * 
  * GET /api/variants/[entryUid]
@@ -23,6 +34,11 @@ export async function GET(
 ) {
   const { entryUid } = params;
 
+  // Deprecation warning
+  console.warn('⚠️ DEPRECATED: /api/variants/[entryUid] route is deprecated.');
+  console.warn('   Use Personalize SDK getVariantAliases() + Delivery SDK .variants() instead.');
+  console.warn('   See lib/personalize.ts and lib/contentstack.ts for the new implementation.');
+  
   console.log(`📡 API Route: Fetching variants for entry ${entryUid}`);
   console.log(`   API_KEY present: ${!!API_KEY}`);
   console.log(`   MANAGEMENT_TOKEN present: ${!!MANAGEMENT_TOKEN}`);
