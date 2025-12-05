@@ -31,7 +31,6 @@
     "@contentstack/live-preview-utils": "^4.1.2",
     "@contentstack/personalize-edge-sdk": "^1.0.19",
     "@tailwindcss/typography": "^0.5.19",
-    "@types/marked": "^6.0.0",
     "autoprefixer": "^10.4.19",
     "axios": "^1.13.2",
     "class-variance-authority": "^0.7.0",
