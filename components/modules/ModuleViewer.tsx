@@ -96,8 +96,8 @@ export default function ModuleViewer({ module, onClose, onStartQuiz }: ModuleVie
     
     if (isHighFlyerUser && isHighFlyerContent && !impressionTriggeredRef.current && user?.team) {
       impressionTriggeredRef.current = true;
-      // Trigger impression for the user's team experience
-      triggerImpressionForTeam(user.team).then((success) => {
+      // Trigger impression for all active experiences (SDK determines which ones)
+      triggerImpressionForTeam().then((success) => {
         if (success) {
           console.log(`✅ Triggered impression for ${user.team} HIGH_FLYER content: ${module.title}`);
         }
