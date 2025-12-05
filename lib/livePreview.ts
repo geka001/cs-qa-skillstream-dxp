@@ -10,10 +10,11 @@
 import ContentstackLivePreview from '@contentstack/live-preview-utils';
 
 // Configuration from environment
+// Note: The preview_token is configured in contentstackSDK.ts for the Delivery SDK,
+// not here in the Live Preview Utils SDK. This SDK only handles UI features (edit buttons, etc.)
 const CONFIG = {
   apiKey: process.env.NEXT_PUBLIC_CONTENTSTACK_API_KEY || '',
   environment: process.env.NEXT_PUBLIC_CONTENTSTACK_ENVIRONMENT || 'dev',
-  previewToken: process.env.NEXT_PUBLIC_CONTENTSTACK_PREVIEW_TOKEN || '',
   branch: process.env.NEXT_PUBLIC_CONTENTSTACK_BRANCH || 'main',
   enabled: process.env.NEXT_PUBLIC_USE_CONTENTSTACK === 'true',
 };
@@ -66,13 +67,13 @@ export function initializeLivePreview(): void {
       // Required for Next.js client-side rendering
       ssr: false,
       // Enable edit button on hover for better UX
-    //   editButton: {
-    //     enable: EDIT_BUTTON_ENABLED,
-    //     exclude: ["outsideLivePreviewPortal"],
-    //     includeByQueryParameter: true,
-    //     position: "bottom",
-    //   },
-       editButton: {
+      editButton: {
+        enable: EDIT_BUTTON_ENABLED,
+        exclude: ["outsideLivePreviewPortal"],
+        includeByQueryParameter: true,
+        position: "bottom",
+      },
+      editInVisualBuilderButton: {
         enable: false
         },
       // Client URL configuration for proper communication
