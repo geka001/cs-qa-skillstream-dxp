@@ -53,6 +53,11 @@ export function getUsersFromLocalStorage(team: Team) {
 
 /**
  * Calculate team statistics
+ * 
+ * Note: This function now uses ROOKIE mandatory modules as the baseline for 
+ * completion percentage. This is consistent with onboarding requirements.
+ * HIGH_FLYER users may have completed more modules than the baseline,
+ * which is expected and shows as >100% in some cases.
  */
 export function calculateTeamStats(users: any[]) {
   if (users.length === 0) {
@@ -78,13 +83,30 @@ export function calculateTeamStats(users: any[]) {
   const highFlyerUsers = users.filter(u => u.segment === 'HIGH_FLYER');
   
   // Calculate average completion percentage
+  // Use a consistent baseline: count completed modules / total available for their segment
+  // For users who completed onboarding, they're at 100%
+  // For others, calculate based on mandatory modules completed
   const totalCompletion = users.reduce((sum, user) => {
+    // If onboarding is complete, count as 100%
+    if (user.onboardingComplete) {
+      return sum + 100;
+    }
+    
+    // Use completed modules count as a percentage
+    // For users in progress, calculate based on their completion
     const completed = user.completedModules?.length || 0;
-    // Use actual personalized content to get accurate module count
-    const { getPersonalizedContent } = require('@/data/mockData');
-    const personalizedContent = getPersonalizedContent(user.segment, user.completedModules, user.team);
-    const total = personalizedContent.modules.length || 1; // Prevent division by zero
-    return sum + (completed / total) * 100;
+    const completedSOPs = user.completedSOPs?.length || 0;
+    const exploredTools = user.exploredTools?.length || 0;
+    
+    // Simplified calculation: 
+    // - Module completion: 60% weight (out of ~4 mandatory)
+    // - SOP completion: 20% weight (out of ~2 mandatory)
+    // - Tools exploration: 20% weight (out of 3 required)
+    const moduleProgress = Math.min((completed / 4) * 60, 60);
+    const sopProgress = Math.min((completedSOPs / 2) * 20, 20);
+    const toolProgress = Math.min((exploredTools / 3) * 20, 20);
+    
+    return sum + moduleProgress + sopProgress + toolProgress;
   }, 0);
   
   // Calculate average quiz score

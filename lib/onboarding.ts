@@ -2,44 +2,17 @@
  * Onboarding Requirements and Completion Logic
  */
 
-import { UserProfile, OnboardingRequirements } from '@/types';
-import { getPersonalizedContent } from '@/data/mockData';
+import { UserProfile, OnboardingRequirements, Module, SOP } from '@/types';
+import { getPersonalizedContent, getPersonalizedContentAsync } from '@/data/mockData';
 
 /**
- * Calculate onboarding requirements and progress
+ * Helper function to calculate requirements from modules and SOPs
  */
-export function calculateOnboardingRequirements(user: UserProfile): OnboardingRequirements {
-  // Get content based on user's CURRENT segment
-  // For AT_RISK users, include both ROOKIE and AT_RISK (remedial) modules
-  const { modules: segmentModules, sops: segmentSOPs } = getPersonalizedContent(
-    user.segment === 'HIGH_FLYER' ? 'ROOKIE' : user.segment, // HIGH_FLYER checks ROOKIE requirements
-    user.completedModules, 
-    user.team
-  );
-  
-  // For AT_RISK, also get ROOKIE modules to ensure team-specific modules are included
-  let allModules = segmentModules;
-  let allSOPs = segmentSOPs;
-  
-  if (user.segment === 'AT_RISK') {
-    const { modules: rookieModules, sops: rookieSOPs } = getPersonalizedContent('ROOKIE', user.completedModules, user.team);
-    // Combine AT_RISK and ROOKIE modules (avoid duplicates)
-    const seenModuleIds = new Set(allModules.map(m => m.id));
-    rookieModules.forEach(m => {
-      if (!seenModuleIds.has(m.id)) {
-        allModules.push(m);
-        seenModuleIds.add(m.id);
-      }
-    });
-    const seenSopIds = new Set(allSOPs.map(s => s.id));
-    rookieSOPs.forEach(s => {
-      if (!seenSopIds.has(s.id)) {
-        allSOPs.push(s);
-        seenSopIds.add(s.id);
-      }
-    });
-  }
-  
+function computeRequirements(
+  user: UserProfile,
+  allModules: Module[],
+  allSOPs: SOP[]
+): OnboardingRequirements {
   // Define what's required for onboarding
   const mandatoryModules = allModules.filter(m => m.mandatory);
   const mandatorySOPs = allSOPs.filter(s => s.mandatory);
@@ -117,6 +90,87 @@ export function calculateOnboardingRequirements(user: UserProfile): OnboardingRe
     overallComplete,
     overallPercentage: Math.round(Math.min(overallPercentage, 100))
   };
+}
+
+/**
+ * Calculate onboarding requirements and progress (sync version - uses cache)
+ * 
+ * Note: This uses the content cache which may fall back to mockData.
+ * For accurate results with Contentstack data, use calculateOnboardingRequirementsAsync.
+ */
+export function calculateOnboardingRequirements(user: UserProfile): OnboardingRequirements {
+  // Get content based on user's CURRENT segment
+  // For AT_RISK users, include both ROOKIE and AT_RISK (remedial) modules
+  const { modules: segmentModules, sops: segmentSOPs } = getPersonalizedContent(
+    user.segment === 'HIGH_FLYER' ? 'ROOKIE' : user.segment, // HIGH_FLYER checks ROOKIE requirements
+    user.completedModules, 
+    user.team
+  );
+  
+  // For AT_RISK, also get ROOKIE modules to ensure team-specific modules are included
+  let allModules = [...segmentModules];
+  let allSOPs = [...segmentSOPs];
+  
+  if (user.segment === 'AT_RISK') {
+    const { modules: rookieModules, sops: rookieSOPs } = getPersonalizedContent('ROOKIE', user.completedModules, user.team);
+    // Combine AT_RISK and ROOKIE modules (avoid duplicates)
+    const seenModuleIds = new Set(allModules.map(m => m.id));
+    rookieModules.forEach(m => {
+      if (!seenModuleIds.has(m.id)) {
+        allModules.push(m);
+        seenModuleIds.add(m.id);
+      }
+    });
+    const seenSopIds = new Set(allSOPs.map(s => s.id));
+    rookieSOPs.forEach(s => {
+      if (!seenSopIds.has(s.id)) {
+        allSOPs.push(s);
+        seenSopIds.add(s.id);
+      }
+    });
+  }
+  
+  return computeRequirements(user, allModules, allSOPs);
+}
+
+/**
+ * Calculate onboarding requirements and progress (async version - fetches from Contentstack)
+ * 
+ * Use this version for accurate results when you need fresh data from Contentstack.
+ */
+export async function calculateOnboardingRequirementsAsync(user: UserProfile): Promise<OnboardingRequirements> {
+  // Get content based on user's CURRENT segment
+  // For AT_RISK users, include both ROOKIE and AT_RISK (remedial) modules
+  const { modules: segmentModules, sops: segmentSOPs } = await getPersonalizedContentAsync(
+    user.segment === 'HIGH_FLYER' ? 'ROOKIE' : user.segment, // HIGH_FLYER checks ROOKIE requirements
+    user.completedModules, 
+    user.team
+  );
+  
+  // For AT_RISK, also get ROOKIE modules to ensure team-specific modules are included
+  let allModules = [...segmentModules];
+  let allSOPs = [...segmentSOPs];
+  
+  if (user.segment === 'AT_RISK') {
+    const { modules: rookieModules, sops: rookieSOPs } = await getPersonalizedContentAsync('ROOKIE', user.completedModules, user.team);
+    // Combine AT_RISK and ROOKIE modules (avoid duplicates)
+    const seenModuleIds = new Set(allModules.map(m => m.id));
+    rookieModules.forEach(m => {
+      if (!seenModuleIds.has(m.id)) {
+        allModules.push(m);
+        seenModuleIds.add(m.id);
+      }
+    });
+    const seenSopIds = new Set(allSOPs.map(s => s.id));
+    rookieSOPs.forEach(s => {
+      if (!seenSopIds.has(s.id)) {
+        allSOPs.push(s);
+        seenSopIds.add(s.id);
+      }
+    });
+  }
+  
+  return computeRequirements(user, allModules, allSOPs);
 }
 
 /**

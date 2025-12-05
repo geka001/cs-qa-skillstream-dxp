@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,10 +15,11 @@ import {
   FileText, 
   Wrench,
   Calendar,
-  TrendingUp
+  TrendingUp,
+  Loader2
 } from 'lucide-react';
-import { UserProfile } from '@/types';
-import { getPersonalizedContent } from '@/data/mockData';
+import { UserProfile, Module, SOP, Tool } from '@/types';
+import { getPersonalizedContentAsync } from '@/data/mockData';
 
 interface UserDetailModalProps {
   user: UserProfile | null;
@@ -25,21 +27,70 @@ interface UserDetailModalProps {
   onClose: () => void;
 }
 
+interface ContentData {
+  rookieModules: Module[];
+  rookieSOPs: SOP[];
+  currentModules: Module[];
+  currentSOPs: SOP[];
+  tools: Tool[];
+}
+
 export default function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps) {
+  const [isLoading, setIsLoading] = useState(true);
+  const [contentData, setContentData] = useState<ContentData | null>(null);
+
+  // Fetch content asynchronously when modal opens
+  useEffect(() => {
+    if (!isOpen || !user) {
+      setContentData(null);
+      setIsLoading(true);
+      return;
+    }
+
+    const fetchContent = async () => {
+      setIsLoading(true);
+      try {
+        // Fetch ROOKIE content for onboarding tracking (consistent with QA dashboard)
+        const rookieContent = await getPersonalizedContentAsync('ROOKIE', user.completedModules, user.team);
+        
+        // Fetch content for user's current segment
+        const currentContent = await getPersonalizedContentAsync(user.segment, user.completedModules, user.team);
+        
+        setContentData({
+          rookieModules: rookieContent.modules,
+          rookieSOPs: rookieContent.sops,
+          currentModules: currentContent.modules,
+          currentSOPs: currentContent.sops,
+          tools: currentContent.tools
+        });
+      } catch (error) {
+        console.error('Error fetching content for user detail:', error);
+        // Set empty content on error
+        setContentData({
+          rookieModules: [],
+          rookieSOPs: [],
+          currentModules: [],
+          currentSOPs: [],
+          tools: []
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchContent();
+  }, [isOpen, user]);
+
   if (!isOpen || !user) return null;
 
-  // For consistent onboarding tracking, always use ROOKIE content like QA dashboard
-  const { modules: rookieModules, sops: rookieSOPs } = getPersonalizedContent('ROOKIE', user.completedModules, user.team);
-  const { modules: currentModules, sops: currentSOPs, tools } = getPersonalizedContent(user.segment, user.completedModules, user.team);
-  
   // Use ROOKIE mandatory SOPs for onboarding count (matches QA dashboard)
-  const mandatorySOPs = rookieSOPs.filter(s => s.mandatory);
+  const mandatorySOPs = contentData?.rookieSOPs.filter(s => s.mandatory) || [];
   const completedMandatorySOPsCount = (user.completedSOPs || []).filter(id =>
     mandatorySOPs.some(s => s.id === id)
   ).length;
   
   // Use mandatory modules for onboarding count
-  const mandatoryModules = rookieModules.filter(m => m.mandatory);
+  const mandatoryModules = contentData?.rookieModules.filter(m => m.mandatory) || [];
   const completedMandatoryModulesCount = (user.completedModules || []).filter(id =>
     mandatoryModules.some(m => m.id === id)
   ).length;
@@ -48,6 +99,8 @@ export default function UserDetailModal({ user, isOpen, onClose }: UserDetailMod
   const completedSOPsCount = user.completedSOPs?.length || 0;
   const exploredToolsCount = user.exploredTools?.length || 0;
   const requiredToolsCount = 3; // Minimum tools required for onboarding
+  
+  const currentModules = contentData?.currentModules || [];
   
   const quizScores = Object.entries(user.quizScores || {});
   const avgScore = quizScores.length > 0
@@ -97,6 +150,16 @@ export default function UserDetailModal({ user, isOpen, onClose }: UserDetailMod
               </CardHeader>
 
               <CardContent className="p-6 space-y-6">
+                {/* Loading State */}
+                {isLoading && (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                    <span className="ml-2 text-muted-foreground">Loading user details...</span>
+                  </div>
+                )}
+
+                {!isLoading && (
+                  <>
                 {/* Key Metrics */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <Card>
@@ -242,6 +305,8 @@ export default function UserDetailModal({ user, isOpen, onClose }: UserDetailMod
                   <Calendar className="w-4 h-4" />
                   <span>Joined: {new Date(user.joinDate).toLocaleDateString()}</span>
                 </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </motion.div>

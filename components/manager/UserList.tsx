@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,12 +16,12 @@ import {
   ChevronDown,
   ChevronUp,
   History,
-  Shield
+  Shield,
+  Loader2
 } from 'lucide-react';
-import { UserProfile, UserSegment } from '@/types';
+import { UserProfile, UserSegment, OnboardingRequirements } from '@/types';
 import { formatLastActivity } from '@/lib/managerAuth';
-import { getPersonalizedContent } from '@/data/mockData';
-import { calculateOnboardingRequirements } from '@/lib/onboarding';
+import { calculateOnboardingRequirementsAsync } from '@/lib/onboarding';
 
 interface UserListProps {
   users: (UserProfile & { lastModified: Date; storageKey: string })[];
@@ -31,6 +31,48 @@ interface UserListProps {
 export default function UserList({ users, onViewDetails }: UserListProps) {
   const [sortBy, setSortBy] = useState<'name' | 'progress' | 'activity'>('activity');
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
+  const [isLoadingRequirements, setIsLoadingRequirements] = useState(true);
+  const [userRequirements, setUserRequirements] = useState<Record<string, OnboardingRequirements>>({});
+
+  // Pre-calculate onboarding requirements for all users when the list changes
+  useEffect(() => {
+    const calculateAllRequirements = async () => {
+      if (users.length === 0) {
+        setIsLoadingRequirements(false);
+        return;
+      }
+
+      setIsLoadingRequirements(true);
+      const requirements: Record<string, OnboardingRequirements> = {};
+
+      // Calculate requirements for each user in parallel
+      await Promise.all(
+        users.map(async (user) => {
+          try {
+            const reqs = await calculateOnboardingRequirementsAsync(user);
+            requirements[user.storageKey || `${user.name}_${user.team}`] = reqs;
+          } catch (error) {
+            console.error(`Error calculating requirements for ${user.name}:`, error);
+            // Provide default requirements on error
+            requirements[user.storageKey || `${user.name}_${user.team}`] = {
+              modules: { required: 4, completed: user.completedModules?.length || 0, percentage: 0 },
+              sops: { required: 2, completed: user.completedSOPs?.length || 0, percentage: 0 },
+              tools: { required: 3, completed: user.exploredTools?.length || 0, percentage: 0 },
+              averageScore: { required: 70, current: 0, passing: false },
+              notAtRisk: user.segment !== 'AT_RISK',
+              overallComplete: user.onboardingComplete || false,
+              overallPercentage: 0
+            };
+          }
+        })
+      );
+
+      setUserRequirements(requirements);
+      setIsLoadingRequirements(false);
+    };
+
+    calculateAllRequirements();
+  }, [users]);
 
   const toggleExpand = (key: string) => {
     setExpandedUsers(prev => {
@@ -55,6 +97,23 @@ export default function UserList({ users, onViewDetails }: UserListProps) {
             <h3 className="font-semibold text-lg mb-2">No Team Members Yet</h3>
             <p className="text-muted-foreground text-sm">
               Users from this team will appear here once they start their onboarding.
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  // Show loading state while calculating requirements
+  if (isLoadingRequirements) {
+    return (
+      <Card className="p-12 text-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <div>
+            <h3 className="font-semibold text-lg mb-2">Loading Team Data</h3>
+            <p className="text-muted-foreground text-sm">
+              Calculating onboarding progress...
             </p>
           </div>
         </div>
@@ -99,13 +158,24 @@ export default function UserList({ users, onViewDetails }: UserListProps) {
     }
   };
 
-  const calculateCompletion = (user: UserProfile) => {
-    const personalizedContent = getPersonalizedContent(user.segment, user.completedModules, user.team);
-    const totalModules = personalizedContent.modules.length;
-    const completedCount = user.completedModules?.length || 0;
-    
-    if (totalModules === 0) return 0;
-    return Math.round((completedCount / totalModules) * 100);
+  // Get onboarding requirements for a user from pre-calculated cache
+  const getOnboardingReqs = (user: UserProfile & { storageKey?: string }) => {
+    const key = user.storageKey || `${user.name}_${user.team}`;
+    return userRequirements[key] || {
+      modules: { required: 4, completed: user.completedModules?.length || 0, percentage: 0 },
+      sops: { required: 2, completed: user.completedSOPs?.length || 0, percentage: 0 },
+      tools: { required: 3, completed: user.exploredTools?.length || 0, percentage: 0 },
+      averageScore: { required: 70, current: 0, passing: false },
+      notAtRisk: user.segment !== 'AT_RISK',
+      overallComplete: user.onboardingComplete || false,
+      overallPercentage: 0
+    };
+  };
+
+  // Calculate completion based on pre-calculated requirements
+  const calculateCompletion = (user: UserProfile & { storageKey?: string }) => {
+    const onboardingReqs = getOnboardingReqs(user);
+    return Math.round(onboardingReqs.overallPercentage);
   };
 
   const calculateAverageScore = (user: UserProfile) => {
@@ -197,7 +267,7 @@ export default function UserList({ users, onViewDetails }: UserListProps) {
           const segmentStyle = getSegmentStyle(user.segment);
           const completion = calculateCompletion(user);
           const avgScore = calculateAverageScore(user);
-          const onboardingReqs = calculateOnboardingRequirements(user);
+          const onboardingReqs = getOnboardingReqs(user);
           const SegmentIcon = () => getSegmentIcon(user.segment);
           const hadInterventions = wasEverAtRisk(user);
           const atRiskPeriods = getAtRiskPeriods(user);
