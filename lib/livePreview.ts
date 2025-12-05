@@ -23,7 +23,7 @@ const CONFIG = {
 let isInitialized = false;
 
 // Edit button enabled state - change this to control edit button visibility
-const EDIT_BUTTON_ENABLED = false;
+const EDIT_BUTTON_ENABLED = true;
 
 /**
  * Reset Live Preview initialization state
