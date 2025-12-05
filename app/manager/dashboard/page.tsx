@@ -76,13 +76,49 @@ export default function ManagerDashboardPage() {
     loadTeamConfig();
   }, [selectedTeam]);
 
-  // Auto-refresh every 30 seconds
+  // Auto-refresh every 60 seconds, only when page is visible
   useEffect(() => {
-    const interval = setInterval(() => {
-      loadData();
-    }, 30000); // 30 seconds
+    let interval: NodeJS.Timeout | null = null;
 
-    return () => clearInterval(interval);
+    const startRefresh = () => {
+      // Only start interval if not already running
+      if (!interval) {
+        interval = setInterval(() => {
+          // Only refresh if document is visible
+          if (document.visibilityState === 'visible') {
+            loadData();
+          }
+        }, 60000); // 60 seconds (reduced frequency)
+      }
+    };
+
+    const stopRefresh = () => {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+
+    // Handle visibility change
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        startRefresh();
+      } else {
+        stopRefresh();
+      }
+    };
+
+    // Start if visible
+    if (document.visibilityState === 'visible') {
+      startRefresh();
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      stopRefresh();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [selectedTeam]);
 
   const handleLogout = () => {

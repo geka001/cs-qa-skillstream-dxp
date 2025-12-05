@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Module } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,56 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '@/contexts/AppContext';
 import AITutor from '@/components/ai/AITutor';
 import { getEditTagProps } from '@/lib/livePreview';
+import { marked } from 'marked';
+
+// Configure marked for safe rendering
+marked.setOptions({
+  breaks: true,       // Convert \n to <br>
+  gfm: true,          // GitHub Flavored Markdown
+});
+
+/**
+ * Check if content is HTML (has HTML tags) or Markdown
+ */
+function isHtml(content: string): boolean {
+  // Check for common HTML tags
+  const htmlPattern = /<(h[1-6]|p|div|span|ul|ol|li|a|strong|em|table|tr|td|th|img|br|hr)[^>]*>/i;
+  return htmlPattern.test(content);
+}
+
+/**
+ * Clean up HTML content - remove excessive whitespace between tags
+ */
+function cleanHtml(content: string): string {
+  return content
+    // Remove multiple newlines between closing and opening tags
+    .replace(/>\s*\n\s*\n+\s*</g, '>\n<')
+    // Remove excessive whitespace between tags
+    .replace(/>\s+</g, '> <')
+    // Clean up whitespace around block elements
+    .replace(/(<\/(h[1-6]|p|div|ul|ol|li|table|tr|td|th|blockquote)>)\s*\n*\s*(<(h[1-6]|p|div|ul|ol|li|table|tr|td|th|blockquote))/gi, '$1$3')
+    .trim();
+}
+
+/**
+ * Parse content - convert Markdown to HTML if needed, clean HTML if already formatted
+ */
+function parseContent(content: string): string {
+  if (!content) return '';
+  
+  // If content already has HTML tags, clean it up and return
+  if (isHtml(content)) {
+    return cleanHtml(content);
+  }
+  
+  // Otherwise, parse as Markdown
+  try {
+    return marked.parse(content) as string;
+  } catch (error) {
+    console.error('Error parsing markdown:', error);
+    return content;
+  }
+}
 
 interface ModuleViewerProps {
   module: Module;
@@ -25,6 +75,11 @@ export default function ModuleViewer({ module, onClose, onStartQuiz }: ModuleVie
   // Use refs to track if actions have been performed
   const contentReadRef = useRef(false);
   const videoWatchedRef = useRef(false);
+  
+  // Parse markdown content to HTML (memoized to avoid re-parsing)
+  const parsedContent = useMemo(() => {
+    return parseContent(module.content);
+  }, [module.content]);
 
   // Track content reading - mark as read after 15 seconds
   useEffect(() => {
@@ -131,8 +186,8 @@ export default function ModuleViewer({ module, onClose, onStartQuiz }: ModuleVie
             <div className="p-6">
               {activeTab === 'content' && (
                 <div 
-                  className="prose dark:prose-invert max-w-none"
-                  dangerouslySetInnerHTML={{ __html: module.content }}
+                  className="prose dark:prose-invert max-w-none prose-headings:scroll-mt-20 prose-h1:text-3xl prose-h1:font-bold prose-h1:mb-6 prose-h2:text-2xl prose-h2:font-semibold prose-h2:mt-8 prose-h2:mb-4 prose-h3:text-xl prose-h3:font-semibold prose-h3:mt-6 prose-h3:mb-3 prose-h4:text-lg prose-h4:font-medium prose-h4:mt-4 prose-h4:mb-2 prose-p:mb-4 prose-ul:mb-4 prose-ol:mb-4 prose-li:mb-1 prose-strong:font-semibold prose-hr:my-8"
+                  dangerouslySetInnerHTML={{ __html: parsedContent }}
                   {...(module.uid ? getEditTagProps({ uid: module.uid }, 'module', 'content') : {})}
                 />
               )}

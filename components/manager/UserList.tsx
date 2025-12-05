@@ -19,22 +19,30 @@ import {
   Shield,
   Loader2
 } from 'lucide-react';
-import { UserProfile, UserSegment, OnboardingRequirements } from '@/types';
+import { UserProfile, UserSegment, OnboardingRequirements, Module } from '@/types';
 import { formatLastActivity } from '@/lib/managerAuth';
 import { calculateOnboardingRequirementsAsync } from '@/lib/onboarding';
+import { getPersonalizedContentAsync } from '@/data/mockData';
 
 interface UserListProps {
   users: (UserProfile & { lastModified: Date; storageKey: string })[];
   onViewDetails: (user: UserProfile) => void;
 }
 
+// Extended requirements with overall progress
+interface ExtendedRequirements extends OnboardingRequirements {
+  totalModules: number;
+  completedModules: number;
+  overallLearningProgress: number;
+}
+
 export default function UserList({ users, onViewDetails }: UserListProps) {
   const [sortBy, setSortBy] = useState<'name' | 'progress' | 'activity'>('activity');
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
   const [isLoadingRequirements, setIsLoadingRequirements] = useState(true);
-  const [userRequirements, setUserRequirements] = useState<Record<string, OnboardingRequirements>>({});
+  const [userRequirements, setUserRequirements] = useState<Record<string, ExtendedRequirements>>({});
 
-  // Pre-calculate onboarding requirements for all users when the list changes
+  // Pre-calculate requirements for all users when the list changes
   useEffect(() => {
     const calculateAllRequirements = async () => {
       if (users.length === 0) {
@@ -43,14 +51,41 @@ export default function UserList({ users, onViewDetails }: UserListProps) {
       }
 
       setIsLoadingRequirements(true);
-      const requirements: Record<string, OnboardingRequirements> = {};
+      const requirements: Record<string, ExtendedRequirements> = {};
 
       // Calculate requirements for each user in parallel
       await Promise.all(
         users.map(async (user) => {
           try {
             const reqs = await calculateOnboardingRequirementsAsync(user);
-            requirements[user.storageKey || `${user.name}_${user.team}`] = reqs;
+            
+            // Fetch all available modules (ROOKIE + HIGH_FLYER + current segment)
+            const rookieContent = await getPersonalizedContentAsync('ROOKIE', user.completedModules, user.team);
+            const highFlyerContent = await getPersonalizedContentAsync('HIGH_FLYER', user.completedModules, user.team);
+            const currentContent = await getPersonalizedContentAsync(user.segment, user.completedModules, user.team);
+            
+            // Combine all unique modules
+            const allModulesMap = new Map<string, Module>();
+            [...rookieContent.modules, ...highFlyerContent.modules, ...currentContent.modules].forEach(m => {
+              allModulesMap.set(m.id, m);
+            });
+            const totalModules = allModulesMap.size;
+            
+            // Count completed modules that exist in all modules
+            const completedModules = (user.completedModules || []).filter(id =>
+              allModulesMap.has(id)
+            ).length;
+            
+            const overallLearningProgress = totalModules > 0
+              ? Math.round((completedModules / totalModules) * 100)
+              : 0;
+            
+            requirements[user.storageKey || `${user.name}_${user.team}`] = {
+              ...reqs,
+              totalModules,
+              completedModules,
+              overallLearningProgress
+            };
           } catch (error) {
             console.error(`Error calculating requirements for ${user.name}:`, error);
             // Provide default requirements on error
@@ -61,7 +96,10 @@ export default function UserList({ users, onViewDetails }: UserListProps) {
               averageScore: { required: 70, current: 0, passing: false },
               notAtRisk: user.segment !== 'AT_RISK',
               overallComplete: user.onboardingComplete || false,
-              overallPercentage: 0
+              overallPercentage: 0,
+              totalModules: 10,
+              completedModules: user.completedModules?.length || 0,
+              overallLearningProgress: 0
             };
           }
         })
@@ -104,8 +142,9 @@ export default function UserList({ users, onViewDetails }: UserListProps) {
     );
   }
 
-  // Show loading state while calculating requirements
-  if (isLoadingRequirements) {
+  // Only show full loading state on initial load (when we have no cached requirements)
+  const hasAnyRequirements = Object.keys(userRequirements).length > 0;
+  if (isLoadingRequirements && !hasAnyRequirements) {
     return (
       <Card className="p-12 text-center">
         <div className="flex flex-col items-center gap-4">
@@ -159,7 +198,7 @@ export default function UserList({ users, onViewDetails }: UserListProps) {
   };
 
   // Get onboarding requirements for a user from pre-calculated cache
-  const getOnboardingReqs = (user: UserProfile & { storageKey?: string }) => {
+  const getOnboardingReqs = (user: UserProfile & { storageKey?: string }): ExtendedRequirements => {
     const key = user.storageKey || `${user.name}_${user.team}`;
     return userRequirements[key] || {
       modules: { required: 4, completed: user.completedModules?.length || 0, percentage: 0 },
@@ -168,14 +207,17 @@ export default function UserList({ users, onViewDetails }: UserListProps) {
       averageScore: { required: 70, current: 0, passing: false },
       notAtRisk: user.segment !== 'AT_RISK',
       overallComplete: user.onboardingComplete || false,
-      overallPercentage: 0
+      overallPercentage: 0,
+      totalModules: 10,
+      completedModules: user.completedModules?.length || 0,
+      overallLearningProgress: 0
     };
   };
 
-  // Calculate completion based on pre-calculated requirements
+  // Calculate overall learning progress (all modules, not just onboarding)
   const calculateCompletion = (user: UserProfile & { storageKey?: string }) => {
-    const onboardingReqs = getOnboardingReqs(user);
-    return Math.round(onboardingReqs.overallPercentage);
+    const reqs = getOnboardingReqs(user);
+    return reqs.overallLearningProgress;
   };
 
   const calculateAverageScore = (user: UserProfile) => {
@@ -435,13 +477,16 @@ export default function UserList({ users, onViewDetails }: UserListProps) {
                     </div>
                   )}
 
-                  {/* Overall Progress */}
+                  {/* Overall Progress - All Modules */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">Overall Progress</span>
                       <span className="font-semibold">{completion}%</span>
                     </div>
                     <Progress value={completion} className="h-2" />
+                    <div className="text-xs text-muted-foreground">
+                      {onboardingReqs.completedModules}/{onboardingReqs.totalModules} modules completed
+                    </div>
                   </div>
 
                   {/* Stats */}
@@ -450,7 +495,7 @@ export default function UserList({ users, onViewDetails }: UserListProps) {
                       <div className="text-lg font-bold text-primary">
                         {user.completedModules?.length || 0}
                       </div>
-                      <div className="text-xs text-muted-foreground">Modules</div>
+                      <div className="text-xs text-muted-foreground">Completed</div>
                     </div>
                     <div className="text-center">
                       <div className="text-lg font-bold text-primary">{avgScore}%</div>

@@ -33,11 +33,26 @@ interface ContentData {
   currentModules: Module[];
   currentSOPs: SOP[];
   tools: Tool[];
+  allAvailableModules: Module[]; // All unique modules across all segments
 }
 
 export default function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [contentData, setContentData] = useState<ContentData | null>(null);
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
 
   // Fetch content asynchronously when modal opens
   useEffect(() => {
@@ -50,18 +65,29 @@ export default function UserDetailModal({ user, isOpen, onClose }: UserDetailMod
     const fetchContent = async () => {
       setIsLoading(true);
       try {
-        // Fetch ROOKIE content for onboarding tracking (consistent with QA dashboard)
+        // Fetch ROOKIE content for onboarding tracking
         const rookieContent = await getPersonalizedContentAsync('ROOKIE', user.completedModules, user.team);
+        
+        // Fetch HIGH_FLYER content to get advanced modules
+        const highFlyerContent = await getPersonalizedContentAsync('HIGH_FLYER', user.completedModules, user.team);
         
         // Fetch content for user's current segment
         const currentContent = await getPersonalizedContentAsync(user.segment, user.completedModules, user.team);
+        
+        // Combine all unique modules for overall progress calculation
+        const allModulesMap = new Map<string, Module>();
+        [...rookieContent.modules, ...highFlyerContent.modules, ...currentContent.modules].forEach(m => {
+          allModulesMap.set(m.id, m);
+        });
+        const allAvailableModules = Array.from(allModulesMap.values());
         
         setContentData({
           rookieModules: rookieContent.modules,
           rookieSOPs: rookieContent.sops,
           currentModules: currentContent.modules,
           currentSOPs: currentContent.sops,
-          tools: currentContent.tools
+          tools: currentContent.tools,
+          allAvailableModules
         });
       } catch (error) {
         console.error('Error fetching content for user detail:', error);
@@ -71,7 +97,8 @@ export default function UserDetailModal({ user, isOpen, onClose }: UserDetailMod
           rookieSOPs: [],
           currentModules: [],
           currentSOPs: [],
-          tools: []
+          tools: [],
+          allAvailableModules: []
         });
       } finally {
         setIsLoading(false);
@@ -95,12 +122,28 @@ export default function UserDetailModal({ user, isOpen, onClose }: UserDetailMod
     mandatoryModules.some(m => m.id === id)
   ).length;
   
-  const completedModulesCount = user.completedModules?.length || 0;
+  // All modules available for this user's learning journey
+  const allAvailableModules = contentData?.allAvailableModules || [];
+  const currentModules = contentData?.currentModules || [];
+  
+  // Count completed modules that exist in the current module list (for segment-specific view)
+  const completedInCurrentModules = (user.completedModules || []).filter(id =>
+    currentModules.some(m => m.id === id)
+  ).length;
+  
+  // Count completed modules that exist in ALL available modules (for overall progress)
+  const completedInAllModules = (user.completedModules || []).filter(id =>
+    allAvailableModules.some(m => m.id === id)
+  ).length;
+  
   const completedSOPsCount = user.completedSOPs?.length || 0;
   const exploredToolsCount = user.exploredTools?.length || 0;
   const requiredToolsCount = 3; // Minimum tools required for onboarding
   
-  const currentModules = contentData?.currentModules || [];
+  // Calculate overall progress based on ALL available modules
+  const overallProgress = allAvailableModules.length > 0
+    ? Math.round((completedInAllModules / allAvailableModules.length) * 100)
+    : 0;
   
   const quizScores = Object.entries(user.quizScores || {});
   const avgScore = quizScores.length > 0
@@ -114,23 +157,24 @@ export default function UserDetailModal({ user, isOpen, onClose }: UserDetailMod
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="w-full max-w-4xl my-8"
+            className="w-full max-w-4xl max-h-[90vh] flex flex-col"
           >
-            <Card>
-              <CardHeader className="border-b sticky top-0 bg-card z-10">
+            <Card className="flex flex-col max-h-full overflow-hidden">
+              {/* Sticky Header - Always visible */}
+              <CardHeader className="border-b bg-card flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-white font-semibold text-2xl">
+                    <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-white font-semibold text-2xl flex-shrink-0">
                       {user.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
                       <CardTitle className="text-2xl">{user.name}</CardTitle>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
                         <Badge variant="outline">{user.team}</Badge>
                         <Badge variant="secondary">{user.role}</Badge>
                         <Badge className={
@@ -143,13 +187,14 @@ export default function UserDetailModal({ user, isOpen, onClose }: UserDetailMod
                       </div>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" onClick={onClose}>
+                  <Button variant="ghost" size="icon" onClick={onClose} className="flex-shrink-0">
                     <X className="w-5 h-5" />
                   </Button>
                 </div>
               </CardHeader>
 
-              <CardContent className="p-6 space-y-6">
+              {/* Scrollable Content */}
+              <CardContent className="p-6 space-y-6 overflow-y-auto flex-grow">
                 {/* Loading State */}
                 {isLoading && (
                   <div className="flex items-center justify-center py-12">
@@ -160,12 +205,31 @@ export default function UserDetailModal({ user, isOpen, onClose }: UserDetailMod
 
                 {!isLoading && (
                   <>
+                {/* Overall Progress Banner */}
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-semibold text-blue-900 dark:text-blue-100">Overall Learning Progress</span>
+                    <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">{overallProgress}%</span>
+                  </div>
+                  <Progress value={overallProgress} className="h-3" />
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                    {completedInAllModules} of {allAvailableModules.length} total modules completed
+                    {allAvailableModules.length - completedInAllModules > 0 && (
+                      <span className="ml-1">• {allAvailableModules.length - completedInAllModules} remaining</span>
+                    )}
+                  </p>
+                </div>
+
                 {/* Key Metrics */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <Card>
                     <CardContent className="pt-6 text-center">
-                      <div className="text-3xl font-bold text-primary">{completedModulesCount}</div>
-                      <div className="text-sm text-muted-foreground">Modules</div>
+                      <div className="text-3xl font-bold text-primary">
+                        {completedInCurrentModules}/{currentModules.length}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {user.segment} Modules
+                      </div>
                     </CardContent>
                   </Card>
                   <Card>
@@ -190,11 +254,49 @@ export default function UserDetailModal({ user, isOpen, onClose }: UserDetailMod
                         )}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {user.onboardingComplete ? 'Complete' : 'In Progress'}
+                        {user.onboardingComplete ? 'Onboarded' : 'Onboarding'}
                       </div>
                     </CardContent>
                   </Card>
                 </div>
+
+                {/* Remaining Modules Notice */}
+                {currentModules.length > completedInCurrentModules && (
+                  <div className={`border rounded-lg p-4 ${
+                    user.segment === 'HIGH_FLYER' 
+                      ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800' 
+                      : user.segment === 'AT_RISK'
+                      ? 'bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800'
+                      : 'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800'
+                  }`}>
+                    <div className={`flex items-center gap-2 ${
+                      user.segment === 'HIGH_FLYER' 
+                        ? 'text-green-700 dark:text-green-300'
+                        : user.segment === 'AT_RISK'
+                        ? 'text-amber-700 dark:text-amber-300'
+                        : 'text-blue-700 dark:text-blue-300'
+                    }`}>
+                      <BookOpen className="w-5 h-5" />
+                      <span className="font-semibold">
+                        {currentModules.length - completedInCurrentModules} Module{currentModules.length - completedInCurrentModules !== 1 ? 's' : ''} Remaining
+                      </span>
+                    </div>
+                    <p className={`text-sm mt-1 ${
+                      user.segment === 'HIGH_FLYER' 
+                        ? 'text-green-600 dark:text-green-400'
+                        : user.segment === 'AT_RISK'
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-blue-600 dark:text-blue-400'
+                    }`}>
+                      {user.segment === 'HIGH_FLYER' && user.onboardingComplete
+                        ? 'Advanced HIGH_FLYER modules available to continue learning journey'
+                        : user.segment === 'AT_RISK'
+                        ? 'Remedial modules to complete for recovery'
+                        : 'Continue with onboarding modules'
+                      }
+                    </p>
+                  </div>
+                )}
 
                 {/* Module Progress */}
                 <div>
@@ -212,10 +314,10 @@ export default function UserDetailModal({ user, isOpen, onClose }: UserDetailMod
                 <div>
                   <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
                     <BookOpen className="w-5 h-5" />
-                    All Learning Modules ({completedModulesCount}/{currentModules.length})
+                    {user.segment} Modules ({completedInCurrentModules}/{currentModules.length})
                   </h3>
                   <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {currentModules.slice(0, 10).map((module) => {
+                    {currentModules.map((module) => {
                       const isCompleted = user.completedModules?.includes(module.id);
                       const score = user.quizScores?.[module.id];
                       
@@ -243,11 +345,6 @@ export default function UserDetailModal({ user, isOpen, onClose }: UserDetailMod
                         </div>
                       );
                     })}
-                    {currentModules.length > 10 && (
-                      <div className="text-sm text-muted-foreground text-center py-2">
-                        + {currentModules.length - 10} more modules
-                      </div>
-                    )}
                   </div>
                 </div>
 
