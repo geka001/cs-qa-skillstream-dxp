@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Force dynamic rendering - this route uses dynamic params
+export const dynamic = 'force-dynamic';
+
 /**
  * API Route: Fetch variants for a specific entry
  * 

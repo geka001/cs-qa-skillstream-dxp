@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUsersByTeam } from '@/lib/contentstackUser';
 
+// Force dynamic rendering - this route uses request.url
+export const dynamic = 'force-dynamic';
+
 // GET: Fetch all users for a team
 export async function GET(request: NextRequest) {
   try {

@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Force dynamic rendering - this route makes external API calls
+export const dynamic = 'force-dynamic';
+
 // Slack configuration from environment variables
 // IMPORTANT: Set these in your .env.local file, never commit real values
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL || '';

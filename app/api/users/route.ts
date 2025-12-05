@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUserByNameAndTeam, createUser, updateUser } from '@/lib/contentstackUser';
 import { UserProfile } from '@/types';
 
+// Force dynamic rendering - this route uses request.url
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
