@@ -44,7 +44,7 @@ export default function ModulesPage() {
     if (user) {
       const loadContent = async () => {
         setLoading(true);
-        const content = await getPersonalizedContentAsync(user.segment, user.completedModules, user.team);
+        const content = await getPersonalizedContentAsync(user.segment, user.completedModules, user.team, user.challengeProVariantAlias);
         setPersonalizedModules(content.modules);
         setLoading(false);
         
@@ -76,7 +76,7 @@ export default function ModulesPage() {
 
   const handleCompleteQuiz = (score: number) => {
     if (selectedModule) {
-      completeModule(selectedModule.id, score);
+      completeModule(selectedModule.id, score, selectedModule.unlocksChallengePro);
       
       if (score >= 90) {
         toast.success('Outstanding performance!', {

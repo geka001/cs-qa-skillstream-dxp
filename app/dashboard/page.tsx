@@ -31,7 +31,7 @@ import { getModularBlockEditTag } from '@/lib/livePreview';
 import { useLivePreview } from '@/contexts/LivePreviewContext';
 
 export default function DashboardPage() {
-  const { user, completeModule, isLoggedIn } = useApp();
+  const { user, completeModule, isLoggedIn, contentRefreshKey } = useApp();
   const router = useRouter();
   const [selectedModule, setSelectedModule] = useState<Module | null>(null);
   const [showQuiz, setShowQuiz] = useState(false);
@@ -58,6 +58,8 @@ export default function DashboardPage() {
 
     async function loadContent() {
       if (user) {
+        console.log(`📦 Loading content for ${user.name} (${user.segment}), challengeProVariantAlias: ${user.challengeProVariantAlias || 'none'}, refreshKey: ${contentRefreshKey}`);
+        
         // Clear cache when in Visual Builder mode to get fresh content
         if (isVisualBuilderMode && contentVersion > 0) {
           clearDashboardCache();
@@ -71,7 +73,7 @@ export default function DashboardPage() {
           setRawEntry(dashboardContent.rawEntry);
         }
 
-        const content = await getPersonalizedContentAsync(user.segment, user.completedModules, user.team);
+        const content = await getPersonalizedContentAsync(user.segment, user.completedModules, user.team, user.challengeProVariantAlias);
         
         // Sort modules using prerequisites logic with completed modules and segment awareness
         const sorted = sortModulesByOrder(content.modules, user.completedModules, user.segment);
@@ -103,7 +105,8 @@ export default function DashboardPage() {
     }
 
     loadContent();
-  }, [user, isLoggedIn, router, contentVersion, isVisualBuilderMode]);
+  // Include segment, challengeProVariantAlias, and contentRefreshKey to refresh when segment changes or Challenge Pro is activated
+  }, [user, isLoggedIn, router, contentVersion, isVisualBuilderMode, user?.segment, user?.challengeProVariantAlias, contentRefreshKey]);
 
   const handleStartModule = (module: Module) => {
     // Track click event for Personalize analytics
@@ -117,7 +120,7 @@ export default function DashboardPage() {
 
   const handleCompleteQuiz = (score: number) => {
     if (selectedModule) {
-      completeModule(selectedModule.id, score);
+      completeModule(selectedModule.id, score, selectedModule.unlocksChallengePro);
       
       if (score >= 90) {
         toast.success('Outstanding performance!', {
@@ -293,6 +296,7 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
+
       </div>
 
       {/* Continue Learning - Next Recommended Module */}

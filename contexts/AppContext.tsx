@@ -17,7 +17,7 @@ interface AppContextType {
   setUser: (user: UserProfile | null) => Promise<void>;
   analytics: AnalyticsData;
   updateAnalytics: (data: Partial<AnalyticsData>) => void;
-  completeModule: (moduleId: string, score: number) => void;
+  completeModule: (moduleId: string, score: number, unlocksChallengePro?: boolean) => void;
   updateSegment: (segment: UserSegment) => void;
   resetProfile: () => void;
   isLoggedIn: boolean;
@@ -29,6 +29,9 @@ interface AppContextType {
   checkOnboardingCompletion: () => void;
   showOnboardingModal: boolean;
   setShowOnboardingModal: (show: boolean) => void;
+  challengeProEnabled: boolean;
+  setChallengeProEnabled: (enabled: boolean, variantAlias?: string) => void;
+  contentRefreshKey: number; // Increment to force content refresh
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -54,6 +57,9 @@ export const useApp = () => {
       checkOnboardingCompletion: () => {},
       showOnboardingModal: false,
       setShowOnboardingModal: () => {},
+      challengeProEnabled: false,
+      setChallengeProEnabled: () => {},
+      contentRefreshKey: 0,
     } as AppContextType;
   }
   return context;
@@ -62,6 +68,8 @@ export const useApp = () => {
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUserState] = useState<UserProfile | null>(null);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+  const [challengeProEnabled, setChallengeProEnabledState] = useState(false);
+  const [contentRefreshKey, setContentRefreshKey] = useState(0);
   const [analytics, setAnalytics] = useState<AnalyticsData>({
     moduleCompletion: 0,
     averageQuizScore: 0,
@@ -187,6 +195,35 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         // Load existing user from Contentstack
         setUserState(userToSet);
         
+        // Load Challenge Pro state from user profile (reset first to handle user switching)
+        if (userToSet.challengeProEnabled && userToSet.segment === 'HIGH_FLYER') {
+          setChallengeProEnabledState(true);
+          
+          // If challengeProEnabled but no variant alias stored, fetch it dynamically
+          if (!userToSet.challengeProVariantAlias) {
+            console.log('⚠️ Challenge Pro enabled but no variant alias stored, fetching dynamically...');
+            try {
+              const response = await fetch('/api/challenge-pro/get-alias?' + new URLSearchParams({
+                team: userToSet.team
+              }));
+              if (response.ok) {
+                const data = await response.json();
+                if (data.variantAlias) {
+                  userToSet.challengeProVariantAlias = data.variantAlias;
+                  console.log(`✅ Fetched variant alias: ${data.variantAlias}`);
+                  // Save it to user profile for next time
+                  await updateUser(userToSet.name, userToSet.team, userToSet);
+                }
+              }
+            } catch (error) {
+              console.error('Failed to fetch Challenge Pro alias:', error);
+            }
+          }
+        } else {
+          // Reset Challenge Pro state for non-HIGH_FLYER users or users without it enabled
+          setChallengeProEnabledState(false);
+        }
+        
         // IMPORTANT: Set Personalize attributes BEFORE fetching content
         // This ensures variant aliases are available when fetching modules
         if (userToSet.team) {
@@ -200,7 +237,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         }
         
         // Pre-populate cache for the user's current segment (after attributes are set)
-        await getPersonalizedContentAsync(userToSet.segment, userToSet.completedModules, userToSet.team);
+        // Pass challengeProVariantAlias to fetch Challenge Pro variants if applicable
+        await getPersonalizedContentAsync(userToSet.segment, userToSet.completedModules, userToSet.team, userToSet.challengeProVariantAlias);
         
         // Check onboarding completion for returning user (after cache is populated)
         setTimeout(() => checkOnboardingCompletionForUser(userToSet), 100);
@@ -220,6 +258,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         // Create new user in Contentstack
         await createUser(newUser);
         setUserState(newUser);
+        
+        // IMPORTANT: Reset Challenge Pro state for new users
+        setChallengeProEnabledState(false);
         
         // IMPORTANT: Set Personalize attributes BEFORE fetching content
         if (newUser.team) {
@@ -273,7 +314,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const refreshCacheForSegment = async () => {
       if (user && user.team) {
         const { getPersonalizedContentAsync } = await import('@/data/mockData');
-        await getPersonalizedContentAsync(user.segment, user.completedModules, user.team);
+        await getPersonalizedContentAsync(user.segment, user.completedModules, user.team, user.challengeProVariantAlias);
       }
     };
     
@@ -288,14 +329,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }));
   };
 
-  const completeModule = (moduleId: string, score: number) => {
+  const completeModule = (moduleId: string, score: number, unlocksChallengePro?: boolean) => {
     if (!user) return;
 
     const updatedUser = {
       ...user,
       completedModules: [...new Set([...user.completedModules, moduleId])],
       quizScores: { ...user.quizScores, [moduleId]: score },
-      timeSpent: user.timeSpent + 30 // Add 30 minutes
+      timeSpent: user.timeSpent + 30, // Add 30 minutes
+      // If this module unlocks Challenge Pro and user is HIGH_FLYER, set the flag
+      ...(unlocksChallengePro && user.segment === 'HIGH_FLYER' && { challengeProUnlocked: true })
     };
 
     // Calculate completion percentage using onboarding requirements (matches onboarding progress)
@@ -537,7 +580,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     checkOnboardingCompletionForUser(user);
   };
 
-  const checkOnboardingCompletionForUser = (currentUser: UserProfile) => {
+  const checkOnboardingCompletionForUser = async (currentUser: UserProfile) => {
     if (!currentUser || currentUser.onboardingComplete) return;
 
     // Get personalized content for user's segment
@@ -576,6 +619,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setUserState(updatedUser);
       debouncedSave(updatedUser); // Auto-save to Contentstack
       
+      // IMPORTANT: Update Personalize attributes for HIGH_FLYER variant content
+      // This ensures the SDK returns correct variant aliases when modules are re-fetched
+      if (currentUser.team) {
+        clearVariantAliasCache();
+        await setPersonalizeAttributes({
+          QA_LEVEL: 'HIGH_FLYER',
+          TEAM_NAME: currentUser.team
+        });
+        // Small delay to allow SDK to process attributes
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      
       // Track onboarding_complete event for Personalize analytics
       trackEvent('onboarding_complete', { 
         team: currentUser.team, 
@@ -601,6 +656,48 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Challenge Pro - Enable and persist to user profile
+  // variantAlias is returned from the activation API (e.g., "cs_personalize_l_0")
+  const setChallengeProEnabled = async (enabled: boolean, variantAlias?: string) => {
+    setChallengeProEnabledState(enabled);
+    
+    if (user && enabled) {
+      // Update user profile with Challenge Pro state and variant alias
+      const updatedUser: UserProfile = {
+        ...user,
+        challengeProEnabled: true,
+        challengeProVariantAlias: variantAlias || user.challengeProVariantAlias
+      };
+      
+      setUserState(updatedUser);
+      
+      // Save to Contentstack
+      try {
+        await updateUser(updatedUser.name, updatedUser.team, updatedUser);
+        console.log('✅ Challenge Pro state saved to user profile');
+        if (variantAlias) {
+          console.log(`✅ Variant alias saved: ${variantAlias}`);
+        }
+      } catch (error) {
+        console.error('Failed to save Challenge Pro state:', error);
+      }
+      
+      // Re-set Personalize attributes to ensure variant delivery
+      clearVariantAliasCache();
+      await setPersonalizeAttributes({
+        QA_LEVEL: user.segment,
+        TEAM_NAME: user.team
+      });
+      
+      // Small delay to ensure state propagates, then trigger content refresh
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Increment refresh key to force re-fetch of modules in dashboard
+      setContentRefreshKey(prev => prev + 1);
+      console.log('🔄 Content refresh triggered after Challenge Pro activation');
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -619,7 +716,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         markToolExplored,
         checkOnboardingCompletion,
         showOnboardingModal,
-        setShowOnboardingModal
+        setShowOnboardingModal,
+        challengeProEnabled,
+        setChallengeProEnabled,
+        contentRefreshKey
       }}
     >
       {children}

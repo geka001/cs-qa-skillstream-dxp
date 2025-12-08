@@ -16,7 +16,9 @@ import {
   Wrench,
   Calendar,
   TrendingUp,
-  Loader2
+  Loader2,
+  Rocket,
+  Trophy
 } from 'lucide-react';
 import { UserProfile, Module, SOP, Tool } from '@/types';
 import { getPersonalizedContentAsync } from '@/data/mockData';
@@ -219,6 +221,44 @@ export default function UserDetailModal({ user, isOpen, onClose }: UserDetailMod
                     )}
                   </p>
                 </div>
+
+                {/* Challenge Pro Status (for HIGH_FLYER users) */}
+                {user.segment === 'HIGH_FLYER' && (
+                  <div className={`rounded-lg p-4 border ${
+                    user.challengeProEnabled 
+                      ? 'bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/40 dark:to-indigo-950/40 border-purple-300 dark:border-purple-700' 
+                      : 'bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {user.challengeProEnabled ? (
+                          <Trophy className="w-6 h-6 text-purple-500" />
+                        ) : (
+                          <Rocket className="w-6 h-6 text-gray-400" />
+                        )}
+                        <div>
+                          <div className="font-semibold flex items-center gap-2">
+                            Challenge Pro
+                            <Badge variant={user.challengeProEnabled ? "default" : "secondary"} className={user.challengeProEnabled ? "bg-purple-500" : ""}>
+                              {user.challengeProEnabled ? 'Active' : 'Not Activated'}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {user.challengeProEnabled 
+                              ? 'Advanced content unlocked' 
+                              : 'Enterprise-level advanced content'}
+                          </p>
+                        </div>
+                      </div>
+                      {user.challengeProEnabled && (
+                        <div className="text-right">
+                          <div className="text-sm font-medium text-purple-600 dark:text-purple-400">Pro Content</div>
+                          <div className="text-xs text-muted-foreground">Unlocked</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Key Metrics */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

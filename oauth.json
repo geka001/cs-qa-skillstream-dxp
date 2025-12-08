@@ -1,0 +1,13 @@
+  {
+    "access_token": "c75557e75d25efc7267415f917c3eccd",
+    "refresh_token": "102970224bfc7d61d08b72bcfdad00c2",
+    "token_type": "Bearer",
+    "expires_in": 3600,
+    "location": "NA",
+    "region": "NA",
+    "organization_uid": "blt38a75dccf5eb5e7c",
+    "authorization_type": "user",
+    "user_uid": "blt014500d6c8a88626",
+    "stack_api_key": "",
+    "token_issued_at": 1765175747448
+  }

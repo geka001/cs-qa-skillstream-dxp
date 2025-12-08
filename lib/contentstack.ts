@@ -100,39 +100,50 @@ async function getVariantAliasesFromPersonalize(team: string, segment: string): 
     return '';
   }
 
-  // Personalize SDK only works client-side
-  if (typeof window === 'undefined') {
-    console.log(`📦 Server-side rendering - no variant aliases available`);
-    return '';
+  // Try Personalize SDK first (client-side only)
+  if (typeof window !== 'undefined') {
+    try {
+      const { getVariantAliases, reinitializeAndGetAliases } = await import('./personalize');
+      
+      // First attempt: Get aliases from SDK
+      let aliases = await getVariantAliases();
+      
+      if (aliases && aliases.length > 0) {
+        console.log(`✅ Got variant aliases from Personalize SDK for ${team}: ${aliases.join(', ')}`);
+        return aliases.join(',');
+      }
+      
+      // Second attempt: Reinitialize SDK and try again
+      console.log(`📦 No aliases on first try, reinitializing Personalize SDK for ${team}...`);
+      aliases = await reinitializeAndGetAliases();
+      
+      if (aliases && aliases.length > 0) {
+        console.log(`✅ Got variant aliases after reinit for ${team}: ${aliases.join(', ')}`);
+        return aliases.join(',');
+      }
+      
+      console.log(`📦 No variant aliases from SDK for ${team} ${segment}, trying fallback...`);
+      
+    } catch (error) {
+      console.warn('⚠️ Could not get variants from Personalize SDK, trying fallback:', error);
+    }
   }
-
+  
+  // FALLBACK: Fetch HIGH_FLYER variant alias directly from CMS variant groups
+  // This ensures HIGH_FLYER users always get variant content even if SDK fails
   try {
-    const { getVariantAliases, reinitializeAndGetAliases } = await import('./personalize');
-    
-    // First attempt: Get aliases from SDK
-    let aliases = await getVariantAliases();
-    
-    if (aliases && aliases.length > 0) {
-      console.log(`✅ Got variant aliases from Personalize SDK for ${team}: ${aliases.join(', ')}`);
-      return aliases.join(',');
+    const highFlyerAliases = await fetchHighFlyerAliases();
+    const teamAlias = highFlyerAliases[team];
+    if (teamAlias) {
+      console.log(`✅ Using fallback HIGH_FLYER alias for ${team}: ${teamAlias}`);
+      return teamAlias;
     }
-    
-    // Second attempt: Reinitialize SDK and try again
-    console.log(`📦 No aliases on first try, reinitializing Personalize SDK for ${team}...`);
-    aliases = await reinitializeAndGetAliases();
-    
-    if (aliases && aliases.length > 0) {
-      console.log(`✅ Got variant aliases after reinit for ${team}: ${aliases.join(', ')}`);
-      return aliases.join(',');
-    }
-    
-    console.log(`📦 No variant aliases from SDK for ${team} ${segment} after retry`);
-    return '';
-    
+    console.log(`📦 No fallback HIGH_FLYER alias found for ${team}`);
   } catch (error) {
-    console.warn('⚠️ Could not get variants from Personalize SDK:', error);
-    return '';
+    console.warn('⚠️ Fallback alias fetch failed:', error);
   }
+  
+  return '';
 }
 
 // Cache for variant state
@@ -148,6 +159,166 @@ export function clearVariantAliasCache(): void {
   cachedTeam = null;
   cachedSegment = null;
   console.log('🔄 Variant cache cleared');
+}
+
+/**
+ * Cache for HIGH_FLYER variant aliases (fetched dynamically from variant groups API)
+ * Key: team name, Value: variant alias (cs_personalize_<exp>_0)
+ */
+let highFlyerAliasCache: Record<string, string> | null = null;
+let highFlyerAliasCacheTime: number = 0;
+
+/**
+ * Cache for Challenge Pro variant aliases (fetched dynamically from variant groups API)
+ * Key: team name, Value: variant alias (cs_personalize_<exp>_0)
+ */
+let challengeProAliasCache: Record<string, string> | null = null;
+let challengeProAliasCacheTime: number = 0;
+const VARIANT_ALIAS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Fetch HIGH_FLYER variant aliases dynamically from variant groups API
+ * Looks for variant groups with "High Flyer" in the name (but not "challenge-pro")
+ * This is a FALLBACK when the Personalize SDK doesn't return aliases
+ */
+async function fetchHighFlyerAliases(): Promise<Record<string, string>> {
+  // Return cached if still valid
+  if (highFlyerAliasCache && Date.now() - highFlyerAliasCacheTime < VARIANT_ALIAS_CACHE_TTL) {
+    return highFlyerAliasCache;
+  }
+  
+  try {
+    const apiKey = process.env.NEXT_PUBLIC_CONTENTSTACK_API_KEY || '';
+    const mgmtToken = process.env.NEXT_PUBLIC_CONTENTSTACK_MANAGEMENT_TOKEN || '';
+    
+    if (!apiKey || !mgmtToken) {
+      console.warn('⚠️ Missing API credentials for HIGH_FLYER alias lookup');
+      return {};
+    }
+    
+    console.log('🔍 Fetching HIGH_FLYER variant groups (fallback)...');
+    
+    const response = await fetch('https://api.contentstack.io/v3/variant_groups', {
+      headers: {
+        'api_key': apiKey,
+        'authorization': mgmtToken,
+      },
+    });
+    
+    if (!response.ok) {
+      console.error('Failed to fetch variant groups:', response.status);
+      return highFlyerAliasCache || {};
+    }
+    
+    const data = await response.json();
+    const aliases: Record<string, string> = {};
+    
+    for (const vg of data.variant_groups || []) {
+      const name = vg.name || '';
+      // Look for HIGH_FLYER variant groups (e.g., "DAM High Flyer") but NOT challenge-pro
+      if (name.toLowerCase().includes('high flyer') && !name.toLowerCase().includes('challenge-pro')) {
+        const expShortUid = vg.personalize_metadata?.experience_short_uid;
+        if (expShortUid) {
+          // Extract team name from variant group name (e.g., 'DAM High Flyer' -> 'DAM')
+          const team = name.replace(/\s*High\s*Flyer\s*/i, '').trim();
+          const alias = `cs_personalize_${expShortUid}_0`;
+          aliases[team] = alias;
+          console.log(`🎯 Found HIGH_FLYER alias for ${team}: ${alias}`);
+        }
+      }
+    }
+    
+    // Cache the results
+    highFlyerAliasCache = aliases;
+    highFlyerAliasCacheTime = Date.now();
+    
+    console.log(`✅ Discovered ${Object.keys(aliases).length} HIGH_FLYER variant aliases`);
+    return aliases;
+    
+  } catch (error) {
+    console.error('Error fetching HIGH_FLYER aliases:', error);
+    return highFlyerAliasCache || {};
+  }
+}
+
+/**
+ * Fetch Challenge Pro variant aliases dynamically from variant groups API
+ * Looks for variant groups with "-challenge-pro" in the name
+ * NO HARDCODING - discovers all Challenge Pro experiences automatically
+ */
+async function fetchChallengeProAliases(): Promise<Record<string, string>> {
+  // Return cached if still valid
+  if (challengeProAliasCache && Date.now() - challengeProAliasCacheTime < VARIANT_ALIAS_CACHE_TTL) {
+    return challengeProAliasCache;
+  }
+  
+  try {
+    const apiKey = process.env.NEXT_PUBLIC_CONTENTSTACK_API_KEY || '';
+    const mgmtToken = process.env.NEXT_PUBLIC_CONTENTSTACK_MANAGEMENT_TOKEN || '';
+    
+    if (!apiKey || !mgmtToken) {
+      console.warn('⚠️ Missing API credentials for Challenge Pro lookup');
+      return {};
+    }
+    
+    console.log('🔍 Fetching Challenge Pro variant groups...');
+    
+    const response = await fetch('https://api.contentstack.io/v3/variant_groups', {
+      headers: {
+        'api_key': apiKey,
+        'authorization': mgmtToken,
+      },
+    });
+    
+    if (!response.ok) {
+      console.error('Failed to fetch variant groups:', response.status);
+      return challengeProAliasCache || {};
+    }
+    
+    const data = await response.json();
+    const aliases: Record<string, string> = {};
+    
+    for (const vg of data.variant_groups || []) {
+      const name = vg.name || '';
+      // Look for variant groups with "-challenge-pro" in the name
+      if (name.toLowerCase().includes('challenge-pro')) {
+        const expShortUid = vg.personalize_metadata?.experience_short_uid;
+        if (expShortUid) {
+          // Extract team name from variant group name (e.g., 'DAM-challenge-pro' -> 'DAM')
+          const team = name.split('-challenge-pro')[0].split('-Challenge-Pro')[0];
+          const alias = `cs_personalize_${expShortUid}_0`;
+          aliases[team] = alias;
+          console.log(`🎯 Found Challenge Pro for ${team}: ${alias}`);
+        }
+      }
+    }
+    
+    // Cache the results
+    challengeProAliasCache = aliases;
+    challengeProAliasCacheTime = Date.now();
+    
+    console.log(`✅ Discovered ${Object.keys(aliases).length} Challenge Pro variant aliases`);
+    return aliases;
+    
+  } catch (error) {
+    console.error('Error fetching Challenge Pro aliases:', error);
+    return challengeProAliasCache || {};
+  }
+}
+
+/**
+ * Get Challenge Pro variant alias for a team (dynamic lookup)
+ * Returns the alias in format: cs_personalize_<exp>_0
+ */
+async function getChallengeProVariantAlias(team: string): Promise<string | null> {
+  const aliases = await fetchChallengeProAliases();
+  const alias = aliases[team];
+  if (alias) {
+    console.log(`🔥 Challenge Pro alias for ${team}: ${alias}`);
+    return alias;
+  }
+  console.log(`📦 No Challenge Pro found for team: ${team}`);
+  return null;
 }
 
 // REST API configuration for variant fetching
@@ -543,6 +714,7 @@ interface ModuleEntry {
   difficulty?: string;
   target_teams?: string;
   target_segments?: string;
+  unlocks_challenge_pro?: boolean; // If true, completing this module unlocks Challenge Pro
   // Variant information (added by Delivery SDK when variant aliases are used)
   _variant?: {
     _uid: string;
@@ -559,7 +731,11 @@ interface QuizEntry {
   explanation: string;
 }
 
-export async function getCsModules(userTeam: Team, userSegment: UserSegment): Promise<Module[]> {
+export async function getCsModules(
+  userTeam: Team, 
+  userSegment: UserSegment,
+  challengeProVariantAlias?: string // Stored alias from user profile (e.g., "cs_personalize_l_0")
+): Promise<Module[]> {
   if (!isSDKEnabled()) {
     return [];
   }
@@ -572,7 +748,20 @@ export async function getCsModules(userTeam: Team, userSegment: UserSegment): Pr
   try {
     // Get variant aliases from Personalize SDK (format: cs_personalize_<exp>_<variant>)
     // HIGH_FLYER users get personalized variant content based on their experience
-    const variantAliases = await getVariantAliasesFromPersonalize(userTeam, userSegment);
+    let variantAliases = await getVariantAliasesFromPersonalize(userTeam, userSegment);
+    
+    // If Challenge Pro variant alias is provided (from user profile), use it
+    // IMPORTANT: Put Challenge Pro alias FIRST so it takes priority over regular High Flyer variants
+    // (both may modify the same base entry, and the first matching alias wins)
+    if (challengeProVariantAlias && userSegment === 'HIGH_FLYER') {
+      if (variantAliases) {
+        // Put Challenge Pro FIRST to take priority
+        variantAliases = `${challengeProVariantAlias},${variantAliases}`;
+      } else {
+        variantAliases = challengeProVariantAlias;
+      }
+      console.log(`🔥 Challenge Pro enabled - using stored alias: ${challengeProVariantAlias} (priority)`);
+    }
     
     let entries: ModuleEntry[] = [];
     
@@ -676,6 +865,7 @@ export async function getCsModules(userTeam: Team, userSegment: UserSegment): Pr
         targetSegments: targetSegments,
         targetTeams: targetTeams,
         tags: safeJsonParse<string[]>(entry.module_tags, []),
+        unlocksChallengePro: entry.unlocks_challenge_pro || false,
         // Include variant info if available
         ...(entry._variant && { _isVariant: true, _variantUid: entry._variant._uid })
       };

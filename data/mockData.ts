@@ -2031,14 +2031,16 @@ function applySegmentLogic(
 export async function getPersonalizedContentAsync(
   segment: UserSegment, 
   completedModules: string[] = [],
-  team?: Team
+  team?: Team,
+  challengeProVariantAlias?: string // Stored alias from user profile (e.g., "cs_personalize_l_0")
 ) {
   // Try to fetch from Contentstack first
   let modules: Module[] = [];
   
   try {
     // Fetch modules from Contentstack
-    const csModules = await getCsModules(team || 'Launch', segment);
+    // Pass challengeProVariantAlias to fetch Challenge Pro variants when applicable
+    const csModules = await getCsModules(team || 'Launch', segment, challengeProVariantAlias);
     
     if (csModules.length > 0) {
       modules = csModules;

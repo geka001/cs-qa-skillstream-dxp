@@ -65,6 +65,10 @@ interface UserEntry {
   interventions_received: number;
   onboarding_complete: boolean;
   onboarding_completed_date?: string;
+  // Challenge Pro fields (CMS field names are lowercase without underscores)
+  challengeprounlocked?: boolean;
+  challengeproenabled?: boolean;
+  challengeprovariantalias?: string;
 }
 
 // Helper to safely parse JSON strings from Contentstack fields
@@ -94,7 +98,11 @@ function csEntryToUserProfile(entry: UserEntry): UserProfile {
     completedSOPs: parseJsonField(entry.completed_sops, []),
     exploredTools: parseJsonField(entry.explored_tools, []),
     onboardingComplete: entry.onboarding_complete || false,
-    onboardingCompletedDate: entry.onboarding_completed_date
+    onboardingCompletedDate: entry.onboarding_completed_date,
+    // Challenge Pro fields
+    challengeProUnlocked: entry.challengeprounlocked || false,
+    challengeProEnabled: entry.challengeproenabled || false,
+    challengeProVariantAlias: entry.challengeprovariantalias
   };
 }
 
@@ -121,7 +129,11 @@ function userProfileToCsEntry(user: UserProfile) {
     onboarding_complete: user.onboardingComplete,
     onboarding_completed_date: user.onboardingCompletedDate || '',
     segment_history: JSON.stringify([]),
-    last_activity: new Date().toISOString()
+    last_activity: new Date().toISOString(),
+    // Challenge Pro fields
+    challengeprounlocked: user.challengeProUnlocked || false,
+    challengeproenabled: user.challengeProEnabled || false,
+    challengeprovariantalias: user.challengeProVariantAlias || ''
   };
 }
 
@@ -223,7 +235,11 @@ export async function updateUser(name: string, team: Team, updates: Partial<User
       completedSOPs: updates.completedSOPs || parseJsonField(currentEntry.completed_sops, []),
       exploredTools: updates.exploredTools || parseJsonField(currentEntry.explored_tools, []),
       onboardingComplete: updates.onboardingComplete !== undefined ? updates.onboardingComplete : currentEntry.onboarding_complete,
-      onboardingCompletedDate: updates.onboardingCompletedDate || currentEntry.onboarding_completed_date
+      onboardingCompletedDate: updates.onboardingCompletedDate || currentEntry.onboarding_completed_date,
+      // Challenge Pro fields
+      challengeProUnlocked: updates.challengeProUnlocked !== undefined ? updates.challengeProUnlocked : currentEntry.challengeprounlocked,
+      challengeProEnabled: updates.challengeProEnabled !== undefined ? updates.challengeProEnabled : currentEntry.challengeproenabled,
+      challengeProVariantAlias: updates.challengeProVariantAlias || currentEntry.challengeprovariantalias
     };
     
     const entryData = userProfileToCsEntry(mergedUser);

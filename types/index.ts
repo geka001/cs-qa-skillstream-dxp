@@ -46,6 +46,10 @@ export interface UserProfile {
   exploredTools: string[];
   onboardingComplete: boolean;
   onboardingCompletedDate?: string;
+  // Challenge Pro (HIGH_FLYER advanced content)
+  challengeProUnlocked?: boolean; // True when user completes a module that unlocks Challenge Pro
+  challengeProEnabled?: boolean; // True when user activates Challenge Pro
+  challengeProVariantAlias?: string; // e.g., "cs_personalize_l_0"
   // Analytics tracking
   lastActivity?: string;
   segmentHistory?: { segment: UserSegment; date: string }[];
@@ -102,6 +106,7 @@ export interface Module {
   mandatory?: boolean;
   prerequisites?: string[]; // Module IDs that must be completed first
   order?: number; // Display order within category
+  unlocksChallengePro?: boolean; // If true, completing this module unlocks Challenge Pro
 }
 
 // Quiz question interface

@@ -181,6 +181,22 @@ export function sortModulesByOrder(
     
     // Among incomplete modules
     if (!aCompleted && !bCompleted) {
+      // For HIGH_FLYER users, put Challenge Pro modules first (order 0 or has challenge-pro tag)
+      if (userSegment === 'HIGH_FLYER') {
+        const aIsChallengePro = a.order === 0 || 
+                                a.tags?.includes('challenge-pro') ||
+                                a.title?.toLowerCase().includes('pro:') ||
+                                a.difficulty === 'advanced';
+        const bIsChallengePro = b.order === 0 || 
+                                b.tags?.includes('challenge-pro') ||
+                                b.title?.toLowerCase().includes('pro:') ||
+                                b.difficulty === 'advanced';
+        
+        // Challenge Pro modules appear first for HIGH_FLYER
+        if (aIsChallengePro && !bIsChallengePro) return -1;
+        if (!aIsChallengePro && bIsChallengePro) return 1;
+      }
+      
       const aIsRemedial = a.category === 'Remedial' || a.category === 'At-Risk Support';
       const bIsRemedial = b.category === 'Remedial' || b.category === 'At-Risk Support';
       
