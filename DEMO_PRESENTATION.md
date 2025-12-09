@@ -19,30 +19,34 @@
 ## 📋 Table of Contents
 
 1. [Executive Summary](#-executive-summary)
-2. [Business Use Cases](#-business-use-cases)
-3. [Key Features & Highlights](#-key-features--highlights)
-4. [Contentstack Products Utilized](#-contentstack-products-utilized)
-5. [Application Architecture](#️-application-architecture)
-6. [User Flows & Journeys](#-user-flows--journeys)
-7. [File Structure & Responsibilities](#-file-structure--responsibilities)
-8. [Live Demo Scenarios](#-live-demo-scenarios)
-9. [Integration Challenges & Solutions](#-integration-challenges--solutions)
-10. [Technical Achievements](#-technical-achievements)
-11. [Future Roadmap](#-future-roadmap)
+2. [What's New: Challenge Pro Feature](#-whats-new-challenge-pro-feature)
+3. [Business Use Cases](#-business-use-cases)
+4. [Key Features & Highlights](#-key-features--highlights)
+5. [Contentstack Products Utilized](#-contentstack-products-utilized)
+6. [Application Architecture](#️-application-architecture)
+7. [User Flows & Journeys](#-user-flows--journeys)
+8. [File Structure & Responsibilities](#-file-structure--responsibilities)
+9. [Live Demo Scenarios](#-live-demo-scenarios)
+10. [Integration Challenges & Solutions](#-integration-challenges--solutions)
+11. [Technical Achievements](#-technical-achievements)
+12. [Future Roadmap](#-future-roadmap)
 
 ---
 
 ## 🎯 Executive Summary
 
-**SkillStream QA Onboarding DXP** is a production-ready, personalized learning management system that demonstrates the full power of Contentstack's Digital Experience Platform. The application provides:
+**SkillStream QA Onboarding DXP** is a production-ready, personalized learning management system that demonstrates the full power of Contentstack's Digital Experience Platform. 
 
-| Metric | Value |
-|--------|-------|
-| **Content Types** | 8+ custom content types |
-| **Product Teams** | 4 dynamically managed teams |
-| **Learning Modules** | 15+ training modules |
-| **Personalization Segments** | 3 user segments (ROOKIE, AT_RISK, HIGH_FLYER) |
-| **Integrations** | Slack, Visual Builder, Live Preview, Personalize SDK |
+### 📊 At a Glance
+
+| Metric | Value | What It Means |
+|--------|-------|---------------|
+| **Content Types** | 8+ custom content types | Different types of content (modules, SOPs, tools, users) stored in Contentstack |
+| **Product Teams** | 4 dynamically managed teams | Teams can be added/updated without code changes |
+| **Learning Modules** | 15+ training modules | Interactive learning content with quizzes |
+| **Personalization Segments** | 3 user segments | ROOKIE (beginner), AT_RISK (needs help), HIGH_FLYER (advanced) |
+| **Integrations** | 5+ Contentstack products | CMS, Personalize, Visual Builder, Live Preview, Launch |
+| **Challenge Pro** | ✅ Active | Advanced enterprise-level content for top performers |
 
 ### What Makes This Unique
 
@@ -66,31 +70,212 @@
 
 ---
 
+## 🆕 What's New: Challenge Pro Feature
+
+### Overview
+**Challenge Pro** is an advanced enterprise-level training program for top-performing HIGH_FLYER users. When a user activates Challenge Pro, they unlock specialized variant content that goes beyond standard training modules.
+
+### How It Works
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    CHALLENGE PRO ACTIVATION FLOW                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  Step 1: User Qualifies                                                │
+│  ┌───────────────────────────────────────────────────────────────────┐ │
+│  │  ✅ User is HIGH_FLYER segment                                    │ │
+│  │  ✅ User has completed onboarding                                 │ │
+│  │  ✅ User clicks "Challenge Pro" button                            │ │
+│  └───────────────────────────────────────────────────────────────────┘ │
+│                          ↓                                              │
+│  Step 2: System Creates Experience                                     │
+│  ┌───────────────────────────────────────────────────────────────────┐ │
+│  │  • Creates Personalize experience: "{team}-high-flyer-pro"        │ │
+│  │  • Creates content variant for base module                       │ │
+│  │  • Generates advanced Challenge Pro content                       │ │
+│  └───────────────────────────────────────────────────────────────────┘ │
+│                          ↓                                              │
+│  Step 3: User Gets Advanced Content                                    │
+│  ┌───────────────────────────────────────────────────────────────────┐ │
+│  │  • Variant content delivered via Personalize                     │ │
+│  │  • User profile updated: challengeProEnabled = true              │ │
+│  │  • Manager sees "Challenge Pro Active" badge                      │ │
+│  └───────────────────────────────────────────────────────────────────┘ │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Contentstack Products Used
+
+| Product | How It's Used | Location |
+|---------|--------------|----------|
+| **Personalize Management API** | Creates experience & variant group | `app/api/challenge-pro/activate/route.ts` |
+| **Content Variants** | Stores advanced Challenge Pro content | Contentstack CMS |
+| **Delivery SDK** | Fetches variant content for user | `lib/contentstack.ts` |
+| **Personalize SDK** | Delivers variant based on user attributes | `lib/personalize.ts` |
+| **OAuth 2.0** | Authenticates Management API calls | `lib/tokenManager.ts` |
+
+### Manager Dashboard Integration
+
+Managers can see Challenge Pro status in the team dashboard:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    MANAGER DASHBOARD VIEW                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  User Card:                                                    │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  👤 Alex Johnson                                           │ │
+│  │  🏷️ Launch Team | 🟢 HIGH_FLYER                           │ │
+│  │                                                           │ │
+│  │  ┌─────────────────────────────────────────────────────┐ │ │
+│  │  │  🏆 High-Flyer Pro                                    │ │ │
+│  │  │  [Challenge Pro] Badge                              │ │ │
+│  │  │  Advanced Challenge Pro content activated            │ │ │
+│  │  └─────────────────────────────────────────────────────┘ │ │
+│  │                                                           │ │
+│  │  Progress: 85% | Modules: 12/15                          │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Technical Implementation
+
+**Files Involved:**
+- `lib/challengePro.ts` - Core Challenge Pro logic
+- `app/api/challenge-pro/activate/route.ts` - Activation API endpoint
+- `app/api/challenge-pro/check/route.ts` - Check if experience exists
+- `app/api/challenge-pro/get-variant/route.ts` - Fetch variant content
+- `components/manager/UserList.tsx` - Manager dashboard display
+- `lib/tokenManager.ts` - OAuth token management
+
+**Key Functions:**
+- `activateChallengePro()` - Client-side activation trigger
+- `checkChallengeProExists()` - Verify experience availability
+- `generateChallengeProContent()` - Create advanced content
+- `getChallengeProVariantAlias()` - Get variant identifier
+
+---
+
 ## 🏢 Business Use Cases
 
 ### Use Case 1: **New Employee Onboarding**
 > *"A new QA engineer joins the Launch team and needs team-specific training"*
 
-| Stage | What Happens |
-|-------|-------------|
-| **Login** | Employee enters name and selects "Launch" team |
-| **Personalization** | System loads Launch-specific modules and SOPs |
-| **Learning** | Interactive modules with video and quizzes |
-| **Tracking** | Progress automatically synced to Contentstack |
-| **Completion** | Manager notified via Slack when onboarding completes |
+**Simple Flow:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│              NEW EMPLOYEE ONBOARDING JOURNEY                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Step 1: Employee Arrives                                      │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  📝 Enters name: "Alex"                                  │ │
+│  │  🏢 Selects team: "Launch"                               │ │
+│  │  [Start Learning Journey]                                │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                          ↓                                      │
+│  Step 2: System Creates Profile                                │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  ✅ Checks Contentstack CMS for existing user            │ │
+│  │  ✅ Creates new user profile if not found                │ │
+│  │  ✅ Sets segment: ROOKIE (beginner)                      │ │
+│  │  ✅ Stores in: Contentstack CMS (user_profile)          │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                          ↓                                      │
+│  Step 3: Personalized Content Loads                            │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  📚 Fetches Launch team modules                           │ │
+│  │  📋 Fetches Launch team SOPs                              │ │
+│  │  🔧 Fetches Launch team tools                             │ │
+│  │  ✅ Filtered by: Team taxonomy + Segment taxonomy        │ │
+│  │  📍 Using: Contentstack Delivery SDK                      │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                          ↓                                      │
+│  Step 4: Employee Learns                                       │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  📖 Reads module content                                  │ │
+│  │  🎥 Watches training videos                              │ │
+│  │  ❓ Takes quizzes                                         │ │
+│  │  ✅ Progress saved automatically                          │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                          ↓                                      │
+│  Step 5: Onboarding Complete                                   │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  🎉 All mandatory modules completed                       │ │
+│  │  📢 Slack notification sent to manager                    │ │
+│  │  📊 Analytics tracked in Personalize                     │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Contentstack Products Used:**
+- **CMS**: Stores user profile and content
+- **Delivery SDK**: Fetches personalized content
+- **Taxonomies**: Filters content by team & segment
+- **Personalize SDK**: Tracks onboarding completion
+- **Management API**: Creates/updates user profile
 
 ---
 
 ### Use Case 2: **Struggling Employee Support**
 > *"An employee fails a quiz and needs intervention"*
 
-| Stage | What Happens |
-|-------|-------------|
-| **Quiz Fail** | User scores below 50% on a module quiz |
-| **Segment Change** | Automatically moved to AT_RISK segment |
-| **Notification** | Manager receives Slack alert |
-| **Remedial Content** | System shows intervention card + support resources |
-| **Recovery** | After completing remedial modules with 70%+, promoted back |
+**Simple Flow:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│              EMPLOYEE SUPPORT & RECOVERY FLOW                   │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Step 1: Employee Fails Quiz                                   │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  ❌ Quiz Score: 45% (below 50% threshold)                │ │
+│  │  📍 Module: "Testing Fundamentals"                        │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                          ↓                                      │
+│  Step 2: System Detects Issue                                  │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  ⚠️ Automatic detection: Score < 50%                     │ │
+│  │  🔄 Segment change: ROOKIE → AT_RISK                     │ │
+│  │  💾 Saved to: Contentstack CMS (user_profile)            │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                          ↓                                      │
+│  Step 3: Manager Notified                                      │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  📢 Slack notification sent                              │ │
+│  │  📧 Manager sees: "Alex failed quiz (45%)"              │ │
+│  │  🔔 Alert appears in manager dashboard                  │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                          ↓                                      │
+│  Step 4: Support Content Shown                                 │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  🚨 Intervention card appears on dashboard               │ │
+│  │  📚 Remedial modules unlocked                            │ │
+│  │  💬 Support message displayed                            │ │
+│  │  📍 Content filtered by: AT_RISK segment                │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                          ↓                                      │
+│  Step 5: Employee Recovers                                     │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  ✅ Completes remedial modules                            │ │
+│  │  ✅ Scores 75%+ on quizzes                               │ │
+│  │  🔄 Segment change: AT_RISK → ROOKIE                     │ │
+│  │  🎊 Recovery notification sent                           │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Contentstack Products Used:**
+- **CMS**: Updates user segment
+- **Management API**: Saves segment change
+- **Personalize SDK**: Tracks segment transition
+- **Taxonomies**: Filters remedial content
+- **Slack Integration**: Sends notifications
 
 ---
 
@@ -103,33 +288,168 @@
 | **High Score** | Maintains 90%+ average quiz score |
 | **Auto-Promote** | System upgrades to HIGH_FLYER segment |
 | **Advanced Access** | Unlocks advanced modules (Selenium, CI/CD, etc.) |
+| **Challenge Pro** | Can activate Challenge Pro for enterprise-level content |
 | **Recognition** | Celebration modal + manager notification |
+
+**Flow Diagram:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    HIGH PERFORMER JOURNEY                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Step 1: Complete Mandatory Modules                            │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  ✅ Module 1: Getting Started                             │ │
+│  │  ✅ Module 2: Testing Fundamentals                        │ │
+│  │  ✅ Module 3: Best Practices                              │ │
+│  │  ✅ Module 4: Team-Specific Content                        │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                          ↓                                      │
+│  Step 2: Maintain High Scores (90%+)                           │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  Quiz Scores: 95%, 92%, 88%, 91%                          │ │
+│  │  Average: 91.5% ✅                                        │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                          ↓                                      │
+│  Step 3: System Auto-Promotes                                  │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  🎉 CONGRATULATIONS!                                       │ │
+│  │  You've been promoted to HIGH_FLYER!                      │ │
+│  │  [Advanced modules unlocked]                              │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                          ↓                                      │
+│  Step 4: Challenge Pro Available                               │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  🏆 High-Flyer Pro                                        │ │
+│  │  [Challenge Pro] Badge                                   │ │
+│  │  Advanced Challenge Pro content activated                │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                          ↓                                      │
+│  Step 5: Manager Sees in Dashboard                            │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  Manager Portal → User Card → "Challenge Pro Active"     │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
 ### Use Case 4: **Manager Team Oversight**
 > *"A manager wants to track their team's onboarding progress"*
 
-| Stage | What Happens |
-|-------|-------------|
-| **Login** | Manager clicks "Manager Portal" |
-| **Team View** | Dashboard shows all team members |
-| **Progress** | Real-time stats: completion %, at-risk count |
-| **Drill-Down** | Click any user to see detailed progress |
-| **Auto-Refresh** | Data updates every 30 seconds |
+**Simple Flow:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│              MANAGER TEAM OVERSIGHT FLOW                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Step 1: Manager Logs In                                       │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  🔐 Enters password                                       │ │
+│  │  🏢 Selects team: "Launch"                                │ │
+│  │  [Access Manager Dashboard]                               │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                          ↓                                      │
+│  Step 2: Team Overview Loads                                   │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  📊 Statistics Cards:                                     │ │
+│  │  • Total Team Members: 12                                 │ │
+│  │  • Onboarding Complete: 8 (67%)                           │ │
+│  │  • Currently At-Risk: 2                                  │ │
+│  │  • High-Flyer Pro Active: 1                               │ │
+│  │  📍 Data from: Contentstack CMS                          │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                          ↓                                      │
+│  Step 3: Team Members List                                     │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  👤 Alex Johnson                                          │ │
+│  │     🟢 HIGH_FLYER | 🏆 Challenge Pro Active              │ │
+│  │     Progress: 85% | Modules: 12/15                       │ │
+│  │                                                           │ │
+│  │  👤 Sarah Chen                                            │ │
+│  │     🔴 AT_RISK | ⚠️ Needs Support                        │ │
+│  │     Progress: 45% | Modules: 3/7                         │ │
+│  │                                                           │ │
+│  │  ... (all team members)                                  │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                          ↓                                      │
+│  Step 4: Detailed User View                                     │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  Click user → Modal opens                                 │ │
+│  │  📊 Shows:                                                │ │
+│  │  • Module completion details                             │ │
+│  │  • Quiz scores                                           │ │
+│  │  • Segment history                                       │ │
+│  │  • Challenge Pro status                                  │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                          ↓                                      │
+│  Step 5: Auto-Refresh                                           │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  🔄 Data refreshes every 60 seconds                      │ │
+│  │  ✅ Always shows latest progress                         │ │
+│  │  📍 Fetches from: Contentstack CMS                       │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Contentstack Products Used:**
+- **CMS**: Stores all user data
+- **Delivery SDK**: Fetches team members
+- **Management API**: Updates user profiles
+- **Taxonomies**: Filters by team
 
 ---
 
 ### Use Case 5: **Content Team Updates**
 > *"The L&D team needs to update training content without developers"*
 
-| Stage | What Happens |
-|-------|-------------|
-| **Visual Builder** | Open any page in Contentstack Visual Builder |
-| **In-Context Edit** | Click any text/image to edit directly |
-| **Live Preview** | See changes in real-time before publishing |
-| **Publish** | One-click publish to production |
-| **No Deploy** | Changes appear instantly - no build required |
+**Simple Flow:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│              NO-CODE CONTENT UPDATE FLOW                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Step 1: Open Visual Builder                                    │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  📝 Content team opens Contentstack                       │ │
+│  │  🖼️ Clicks "Visual Builder"                               │ │
+│  │  🌐 Selects environment: "Production"                     │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                          ↓                                      │
+│  Step 2: Edit Content In-Context                                │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  👆 Clicks on any text: "Welcome to SkillStream"          │ │
+│  │  ✏️ Inline editor appears                                 │ │
+│  │  📝 Changes to: "Welcome to SkillStream DXP!"            │ │
+│  │  💾 Edit tags show what can be edited                     │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                          ↓                                      │
+│  Step 3: Preview Changes                                        │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  👁️ Live Preview shows changes instantly                  │ │
+│  │  ✅ Content team reviews                                  │ │
+│  │  🔄 Can edit more if needed                               │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                          ↓                                      │
+│  Step 4: Publish                                                │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │  🚀 Clicks "Publish"                                      │ │
+│  │  ✅ Content saved to Contentstack CMS                     │ │
+│  │  ⚡ Changes appear on live site immediately                │ │
+│  │  ❌ No developer needed                                   │ │
+│  │  ❌ No code deployment required                           │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Contentstack Products Used:**
+- **Visual Builder**: In-context editing interface
+- **Live Preview**: Real-time preview of changes
+- **CMS**: Stores updated content
+- **Delivery SDK**: Serves updated content immediately
 
 ---
 
@@ -185,19 +505,67 @@
 
 ## 🔧 Contentstack Products Utilized
 
+### Complete Product Suite Integration
+
+This application demonstrates **9 Contentstack products** working together seamlessly:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    CONTENTSTACK PRODUCTS IN USE                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  📦 CMS (Headless)              │  🎯 Personalize SDK                   │
+│  ────────────────────────────   │  ────────────────────────────        │
+│  • Stores all content          │  • Tracks user segments               │
+│  • Modules, SOPs, Tools         │  • Sends analytics events              │
+│  • User profiles                │  • Records impressions                │
+│  • Team configurations          │  • Used in: lib/personalize.ts        │
+│  • Used in: lib/contentstack.ts │                                       │
+│                                 │                                       │
+│  📥 Delivery SDK                │  🖼️ Visual Builder                   │
+│  ────────────────────────────   │  ────────────────────────────        │
+│  • Fetches published content   │  • In-context editing                 │
+│  • Type-safe TypeScript queries│  • Edit tags on components            │
+│  • Filters by taxonomies       │  • No-code content updates             │
+│  • Used in: lib/contentstack.ts│  • Used in: lib/livePreview.ts         │
+│                                 │                                       │
+│  🔧 Management API             │  👁️ Live Preview                     │
+│  ────────────────────────────   │  ────────────────────────────        │
+│  • Creates/updates user data   │  • Real-time content preview          │
+│  • Creates Challenge Pro        │  • See changes before publish         │
+│    variants & experiences      │  • Used in: lib/livePreview.ts        │
+│  • Used in: app/api/*/route.ts │                                       │
+│                                 │                                       │
+│  🏷️ Taxonomies                 │  🚀 Launch                            │
+│  ────────────────────────────   │  ────────────────────────────        │
+│  • User Segments (ROOKIE, etc.)│  • Hosting & deployment                │
+│  • Product Teams                │  • CDN & SSL included                 │
+│  • Skill Levels                 │  • Used for: Production hosting       │
+│  • Used for: Content filtering │                                       │
+│                                 │                                       │
+│  🎨 Variants                    │  🔐 OAuth 2.0                         │
+│  ────────────────────────────   │  ────────────────────────────        │
+│  • Segment-specific content    │  • Secure API authentication          │
+│  • Challenge Pro variants      │  • Management API access               │
+│  • Used in: Challenge Pro      │  • Used in: lib/tokenManager.ts       │
+│                                 │                                       │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
 ### Product Usage Matrix
 
-| Product | Usage | Implementation |
-|---------|-------|----------------|
-| **CMS (Headless)** | ✅ Core content storage | All modules, SOPs, tools, teams, users |
-| **Delivery SDK** | ✅ Content fetching | TypeScript SDK for type-safe queries |
-| **Management API** | ✅ User data CRUD | Create/update user profiles |
-| **Taxonomies** | ✅ Content classification | Segment & Team filtering |
-| **Variants** | ✅ Content personalization | Segment-specific content versions |
-| **Live Preview** | ✅ Real-time editing | Edit before publish |
-| **Visual Builder** | ✅ In-context editing | Edit directly on page |
-| **Personalize SDK** | ✅ Analytics & impressions | Track user segments |
-| **Launch** | ✅ Deployment | Deployed on Launch platform |
+| Product | What It Does | Where It's Used | Why It Matters |
+|---------|-------------|-----------------|----------------|
+| **CMS (Headless)** | Stores all content (modules, users, teams) | `lib/contentstack.ts` | Single source of truth for all content |
+| **Delivery SDK** | Fetches content from CMS | `lib/contentstack.ts` | Type-safe way to get content in the app |
+| **Management API** | Creates/updates user profiles & variants | `app/api/challenge-pro/*` | Allows app to save user progress |
+| **Taxonomies** | Organizes content by segments & teams | Content filtering logic | Enables personalization |
+| **Variants** | Different content for different users | Challenge Pro feature | Advanced users see advanced content |
+| **Live Preview** | Preview changes before publishing | `lib/livePreview.ts` | Content team can test changes safely |
+| **Visual Builder** | Edit content directly on the page | `lib/livePreview.ts` | Non-technical users can update content |
+| **Personalize SDK** | Tracks user behavior & segments | `lib/personalize.ts` | Analytics for understanding users |
+| **Launch** | Hosts the application | Production deployment | Fast, secure hosting with CDN |
+| **OAuth 2.0** | Secure API authentication | `lib/tokenManager.ts` | Secure access to Management API |
 
 ---
 
@@ -271,98 +639,491 @@
 
 ---
 
+## 📍 Contentstack Products: Where They're Used
+
+### Complete Product-to-Codebase Mapping
+
+This section shows exactly where each Contentstack product is implemented in the codebase.
+
+#### 1. **CMS (Headless Content Management)**
+
+**What it does:** Stores all content (modules, users, teams, SOPs, tools)
+
+**Where it's used:**
+
+| File | Function | Purpose |
+|------|----------|---------|
+| `lib/contentstack.ts` | `getCsModules()` | Fetches training modules |
+| `lib/contentstack.ts` | `fetchSOPs()` | Fetches Standard Operating Procedures |
+| `lib/contentstack.ts` | `fetchTools()` | Fetches development tools |
+| `lib/contentstackUser.ts` | `getUserProfile()` | Retrieves user profile |
+| `lib/teamService.ts` | `getTeams()` | Fetches team configurations |
+| `app/api/users/route.ts` | `POST/PUT` | Creates/updates user profiles |
+
+**Content Types Used:**
+- `qa_training_module` - Learning modules
+- `qa_sop` - Standard Operating Procedures
+- `qa_tool` - Development tools
+- `user_profile` - User data & progress
+- `team_config` - Team configurations
+- `page` - Page content (login, dashboard)
+
+---
+
+#### 2. **Delivery SDK**
+
+**What it does:** Fetches published content from CMS (read-only)
+
+**Where it's used:**
+
+| File | Function | Purpose |
+|------|----------|---------|
+| `lib/contentstack.ts` | All fetch functions | Gets content from CMS |
+| `lib/contentstackSDK.ts` | `initializeStack()` | Sets up SDK instance |
+| `lib/teamService.ts` | `getLoginPageData()` | Fetches login page content |
+
+**Key Implementation:**
+```typescript
+// lib/contentstack.ts
+import contentstack from '@contentstack/delivery-sdk';
+
+const stack = contentstack.stack({
+  apiKey: API_KEY,
+  deliveryToken: DELIVERY_TOKEN,
+  environment: ENVIRONMENT
+});
+
+// Fetch modules filtered by taxonomy
+const modules = await stack
+  .contentType('qa_training_module')
+  .entry()
+  .query({ team_taxonomy: team })
+  .find();
+```
+
+---
+
+#### 3. **Management API**
+
+**What it does:** Creates/updates content (write operations)
+
+**Where it's used:**
+
+| File | Function | Purpose |
+|------|----------|---------|
+| `app/api/users/route.ts` | `POST` | Create new user profile |
+| `app/api/users/route.ts` | `PUT` | Update user progress |
+| `app/api/challenge-pro/activate/route.ts` | `POST` | Create Challenge Pro experience |
+| `app/api/challenge-pro/activate/route.ts` | `POST` | Create content variant |
+| `lib/contentstackUser.ts` | `saveUserProfile()` | Save user data to CMS |
+
+**Authentication:** Uses OAuth 2.0 via `lib/tokenManager.ts`
+
+---
+
+#### 4. **Taxonomies**
+
+**What it does:** Organizes content by categories (segments, teams, skill levels)
+
+**Where it's used:**
+
+| File | Function | Purpose |
+|------|----------|---------|
+| `lib/contentstack.ts` | `getCsModules()` | Filters modules by team & segment |
+| `lib/contentstack.ts` | `fetchSOPs()` | Filters SOPs by team & segment |
+| `lib/contentstack.ts` | `fetchTools()` | Filters tools by team & segment |
+
+**Taxonomies Created:**
+- **User Segments**: ROOKIE, AT_RISK, HIGH_FLYER
+- **Product Teams**: Launch, DAM, Data & Insights, AutoDraft
+- **Skill Levels**: Beginner, Intermediate, Advanced
+
+**How it works:**
+```typescript
+// Filter content by taxonomy
+const query = {
+  team_taxonomy: { $in: [team] },
+  segment_taxonomy: { $in: [segment] }
+};
+```
+
+---
+
+#### 5. **Variants**
+
+**What it does:** Different content versions for different user segments
+
+**Where it's used:**
+
+| File | Function | Purpose |
+|------|----------|---------|
+| `app/api/challenge-pro/activate/route.ts` | Creates variant | Challenge Pro variant creation |
+| `app/api/challenge-pro/get-variant/route.ts` | Fetches variant | Gets variant content for user |
+| `lib/contentstack.ts` | `fetchVariantsForEntry()` | Retrieves variants for entry |
+
+**Use Case:** Challenge Pro users see advanced variant content instead of base content
+
+---
+
+#### 6. **Personalize SDK**
+
+**What it does:** Tracks user segments and sends analytics events
+
+**Where it's used:**
+
+| File | Function | Purpose |
+|------|----------|---------|
+| `lib/personalize.ts` | `initializePersonalize()` | Sets up Personalize SDK |
+| `lib/personalize.ts` | `setPersonalizeAttributes()` | Sets user segment (QA_LEVEL) |
+| `lib/personalize.ts` | `trackEvent()` | Sends quiz_pass, quiz_fail events |
+| `lib/personalize.ts` | `triggerImpression()` | Tracks when content shown |
+| `contexts/AppContext.tsx` | `completeModule()` | Calls trackEvent() |
+
+**Events Tracked:**
+- `quiz_pass` - User passes quiz
+- `quiz_fail` - User fails quiz
+- `module_complete` - User completes module
+- `onboarding_complete` - User finishes onboarding
+
+---
+
+#### 7. **Visual Builder**
+
+**What it does:** Allows editing content directly on the page (no-code)
+
+**Where it's used:**
+
+| File | Function | Purpose |
+|------|----------|---------|
+| `lib/livePreview.ts` | `initializeLivePreview()` | Sets up Visual Builder mode |
+| `lib/livePreview.ts` | `getEditTagProps()` | Generates edit tags for elements |
+| `lib/livePreview.ts` | `getModularBlockEditTag()` | Edit tags for modular blocks |
+| `contexts/LivePreviewContext.tsx` | Provider | Manages Visual Builder state |
+| `app/dashboard/page.tsx` | Uses edit tags | Makes content editable |
+
+**Edit Tags Added To:**
+- Page headings
+- Module titles
+- Team descriptions
+- Hero banners
+
+---
+
+#### 8. **Live Preview**
+
+**What it does:** Preview content changes before publishing
+
+**Where it's used:**
+
+| File | Function | Purpose |
+|------|----------|---------|
+| `lib/livePreview.ts` | `initializeLivePreview()` | Sets up preview mode |
+| `contexts/LivePreviewContext.tsx` | `handleContentChange()` | Refreshes content on change |
+| `app/dashboard/page.tsx` | Uses LivePreviewProvider | Enables preview functionality |
+
+**How it works:** When content team edits in Visual Builder, changes appear in real-time preview
+
+---
+
+#### 9. **Launch (Hosting)**
+
+**What it does:** Hosts the entire application
+
+**Where it's used:**
+- Production deployment
+- CDN distribution
+- SSL certificates
+- Automatic deployments
+
+**Configuration:** `next.config.js` and deployment settings
+
+---
+
+#### 10. **OAuth 2.0**
+
+**What it does:** Securely authenticates Management API calls
+
+**Where it's used:**
+
+| File | Function | Purpose |
+|------|----------|---------|
+| `lib/tokenManager.ts` | `getTokenData()` | Gets OAuth token |
+| `lib/tokenManager.ts` | `refreshToken()` | Refreshes expired token |
+| `app/api/challenge-pro/activate/route.ts` | Uses token | Authenticates API calls |
+
+**Flow:**
+1. App requests token from OAuth endpoint
+2. Token stored securely
+3. Token included in Management API requests
+4. Token auto-refreshed when expired
+
+---
+
+### Product Integration Summary
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│              CONTENTSTACK PRODUCTS INTEGRATION MAP              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  User Action → Frontend → API Route → Contentstack Product     │
+│                                                                 │
+│  Login          → AppContext → /api/users → CMS + Management   │
+│  View Modules   → Dashboard → lib/contentstack.ts → Delivery SDK│
+│  Complete Quiz  → AppContext → /api/users → Management API     │
+│  Track Event    → AppContext → lib/personalize.ts → Personalize│
+│  Edit Content   → Visual Builder → lib/livePreview.ts → VB     │
+│  Activate Pro   → Challenge Pro → /api/challenge-pro → Mgmt API│
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## 🏗️ Application Architecture
 
-### High-Level Architecture
+### High-Level Architecture (Simple View)
+
+**Think of it like a 3-layer cake:**
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│                           SkillStream DXP Architecture                        │
+│                         LAYER 1: USER INTERFACE                              │
+│                    (What users see and interact with)                        │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
+│  │  Login Page  │  │  Dashboard   │  │   Modules    │  │   Manager    │    │
+│  │              │  │              │  │              │  │   Portal     │    │
+│  │ Enter name   │  │ Personalized│  │ View content │  │ Team stats   │    │
+│  │ Select team  │  │ content      │  │ Take quizzes │  │ User details │    │
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘    │
+│                                                                              │
+│  Built with: Next.js 14 (React framework)                                   │
+│  Location: app/ directory                                                   │
+│                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
                                       │
+                                      │ (User actions & data requests)
                                       ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│                              FRONTEND (Next.js 14)                            │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
-│  │  Login Page │  │  Dashboard  │  │  Modules    │  │  Manager    │          │
-│  │  /login     │  │  /dashboard │  │  /modules   │  │  /manager   │          │
-│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘          │
-│                              │                                                │
-│                    ┌─────────▼─────────┐                                      │
-│                    │   AppContext      │  ← Global State Management           │
-│                    │   (React Context) │                                      │
-│                    └─────────┬─────────┘                                      │
-└──────────────────────────────┼───────────────────────────────────────────────┘
-                               │
-           ┌───────────────────┼───────────────────┐
-           │                   │                   │
-           ▼                   ▼                   ▼
-┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│   CONTENTSTACK  │  │     SLACK       │  │   PERSONALIZE   │
-│      CMS        │  │   WEBHOOKS      │  │      SDK        │
-│                 │  │                 │  │                 │
-│ • Delivery SDK  │  │ • Onboarding    │  │ • User attrs    │
-│ • Management API│  │ • Quiz Fail     │  │ • Impressions   │
-│ • Live Preview  │  │ • Recovery      │  │ • Events        │
-│ • Visual Builder│  │                 │  │                 │
-└─────────────────┘  └─────────────────┘  └─────────────────┘
-        │
-        ▼
-┌─────────────────┐
-│  CONTENTSTACK   │
-│     LAUNCH      │
-│                 │
-│ • Deployment    │
-│ • CDN           │
-│ • SSL           │
-└─────────────────┘
+│                    LAYER 2: BUSINESS LOGIC & SERVICES                        │
+│                    (How the app processes information)                      │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                    REACT CONTEXTS (State Management)                  │  │
+│  │  • AppContext: User data, progress, segments                         │  │
+│  │  • LivePreviewContext: Visual Builder integration                    │  │
+│  │  • ManagerContext: Manager portal state                              │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                    LIBRARY SERVICES (lib/ directory)                 │  │
+│  │  • contentstack.ts → Fetches content from CMS                        │  │
+│  │  • personalize.ts → Tracks user analytics                            │  │
+│  │  • slackNotifications.ts → Sends alerts                              │  │
+│  │  • challengePro.ts → Handles Challenge Pro activation               │  │
+│  │  • tokenManager.ts → Manages API authentication                      │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                    API ROUTES (app/api/ directory)                    │  │
+│  │  • /api/users → Create/update user profiles                           │  │
+│  │  • /api/challenge-pro/activate → Activate Challenge Pro              │  │
+│  │  • /api/slack/notify → Send Slack notifications                       │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      │ (API calls & data requests)
+                                      ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                    LAYER 3: CONTENTSTACK PLATFORM                            │
+│                    (Where all data lives and is managed)                     │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                    CONTENTSTACK CMS                                  │  │
+│  │  • Stores: Modules, SOPs, Tools, User Profiles, Teams              │  │
+│  │  • Accessed via: Delivery SDK (read) & Management API (write)      │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                    CONTENTSTACK PERSONALIZE                          │  │
+│  │  • Tracks: User segments, quiz scores, module completions           │  │
+│  │  • Accessed via: Personalize SDK                                    │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                    VISUAL BUILDER & LIVE PREVIEW                     │  │
+│  │  • Allows: In-context editing, real-time preview                     │  │
+│  │  • Accessed via: Live Preview SDK                                    │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                    CONTENTSTACK LAUNCH                                │  │
+│  │  • Hosts: The entire application                                     │  │
+│  │  • Provides: CDN, SSL, automatic deployments                         │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Data Flow Diagram
+### Technical Architecture (Detailed View)
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                    SKILLSTREAM DXP TECHNICAL ARCHITECTURE                     │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                         FRONTEND LAYER                                        │
+│                    (Next.js 14 + React + TypeScript)                         │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  Pages (app/ directory):                                                     │
+│  ├── /login → User login & team selection                                   │
+│  ├── /dashboard → Personalized learning dashboard                            │
+│  ├── /dashboard/modules → All learning modules                               │
+│  ├── /manager/dashboard → Manager oversight portal                           │
+│  └── /api/* → Server-side API endpoints                                      │
+│                                                                              │
+│  Components (components/ directory):                                         │
+│  ├── cards/ → ModuleCard, SOPCard, ChallengeProCard                         │
+│  ├── layout/ → Sidebar, Topbar, AnalyticsPanel                              │
+│  ├── manager/ → UserList, TeamStats, UserDetailModal                        │
+│  └── ui/ → Reusable UI components (buttons, cards, etc.)                    │
+│                                                                              │
+│  State Management (contexts/ directory):                                     │
+│  ├── AppContext.tsx → Global user state & actions                           │
+│  ├── LivePreviewContext.tsx → Visual Builder integration                    │
+│  └── ManagerContext.tsx → Manager portal state                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      │ HTTP Requests
+                                      ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                         API LAYER                                            │
+│                    (Next.js API Routes)                                      │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  /api/users/route.ts                                                        │
+│  ├── GET → Fetch user profile                                               │
+│  ├── POST → Create new user                                                 │
+│  └── PUT → Update user progress                                             │
+│                                                                              │
+│  /api/challenge-pro/activate/route.ts                                        │
+│  ├── Creates Personalize experience                                         │
+│  ├── Creates content variant                                                │
+│  └── Updates user profile                                                   │
+│                                                                              │
+│  /api/slack/notify/route.ts                                                 │
+│  └── POST → Send Slack webhook notifications                                │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      │ SDK Calls & API Requests
+                                      ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                    CONTENTSTACK PLATFORM INTEGRATION                         │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  📦 CMS (Content Management System)                                         │
+│  ├── Delivery SDK → Read published content (lib/contentstack.ts)            │
+│  ├── Management API → Write user data (app/api/*/route.ts)                  │
+│  └── OAuth 2.0 → Secure API access (lib/tokenManager.ts)                    │
+│                                                                              │
+│  🎯 Personalize (Analytics & Personalization)                               │
+│  ├── Personalize SDK → Track segments & events (lib/personalize.ts)        │
+│  └── Management API → Create experiences (app/api/challenge-pro/*)          │
+│                                                                              │
+│  🖼️ Visual Builder (In-Context Editing)                                     │
+│  └── Live Preview SDK → Enable editing (lib/livePreview.ts)                │
+│                                                                              │
+│  🚀 Launch (Hosting & Deployment)                                           │
+│  └── Hosts entire application with CDN & SSL                                │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Data Flow Diagram (Step-by-Step)
+
+**Scenario: User logs in and completes a module**
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────────┐
-│                              DATA FLOW                                         │
+│                    DATA FLOW: USER LOGIN & MODULE COMPLETION                  │
 └───────────────────────────────────────────────────────────────────────────────┘
 
-User Action          Frontend                 Backend/API             Contentstack
-    │                   │                        │                        │
-    │ 1. Login          │                        │                        │
-    ├──────────────────>│                        │                        │
-    │                   │ 2. Check if user exists│                        │
-    │                   ├───────────────────────>│                        │
-    │                   │                        │ 3. Query user_profile  │
-    │                   │                        ├───────────────────────>│
-    │                   │                        │<───────────────────────┤
-    │                   │                        │ 4. Return user data    │
-    │                   │<───────────────────────┤                        │
-    │                   │                        │                        │
-    │                   │ 5. Fetch modules for   │                        │
-    │                   │    user's team+segment │                        │
-    │                   ├───────────────────────>│                        │
-    │                   │                        │ 6. Filter by taxonomy  │
-    │                   │                        ├───────────────────────>│
-    │                   │                        │<───────────────────────┤
-    │                   │                        │ 7. Return filtered     │
-    │                   │<───────────────────────┤    modules             │
-    │                   │                        │                        │
-    │<──────────────────┤ 8. Render personalized │                        │
-    │  See dashboard    │    dashboard           │                        │
-    │                   │                        │                        │
-    │ 9. Complete quiz  │                        │                        │
-    ├──────────────────>│                        │                        │
-    │                   │ 10. Update user profile│                        │
-    │                   ├───────────────────────>│                        │
-    │                   │                        │ 11. PUT to user entry  │
-    │                   │                        ├───────────────────────>│
-    │                   │                        │                        │
-    │                   │ 12. Track event        │                        │
-    │                   ├──────────────────────────────────────────────> Personalize
-    │                   │                        │                        │
-    │                   │ 13. Send Slack notif   │                        │
-    │                   ├──────────────────────────────────────────────> Slack
-    │                   │                        │                        │
+┌──────────┐      ┌──────────┐      ┌──────────┐      ┌──────────────┐
+│   USER   │      │ FRONTEND │      │   API    │      │ CONTENTSTACK │
+│          │      │  (React) │      │ (Next.js)│      │     CMS      │
+└────┬─────┘      └────┬─────┘      └────┬─────┘      └──────┬───────┘
+     │                  │                  │                   │
+     │ 1. Enter name    │                  │                   │
+     │    Select team   │                  │                   │
+     ├─────────────────>│                  │                   │
+     │                  │                  │                   │
+     │                  │ 2. Check if user │                   │
+     │                  │    exists        │                   │
+     │                  ├──────────────────>│                   │
+     │                  │                  │ 3. Query CMS      │
+     │                  │                  │    for user      │
+     │                  │                  ├──────────────────>│
+     │                  │                  │                  │
+     │                  │                  │ 4. User found    │
+     │                  │                  │    (or create)  │
+     │                  │                  │<──────────────────┤
+     │                  │                  │                   │
+     │                  │ 5. Fetch modules │                   │
+     │                  │    for team       │                   │
+     │                  ├──────────────────>│                   │
+     │                  │                  │ 6. Query CMS     │
+     │                  │                  │    with filters │
+     │                  │                  ├──────────────────>│
+     │                  │                  │                  │
+     │                  │                  │ 7. Return        │
+     │                  │                  │    modules       │
+     │                  │                  │<──────────────────┤
+     │                  │                  │                   │
+     │ 8. See dashboard │                  │                   │
+     │<─────────────────┤                  │                   │
+     │                  │                  │                   │
+     │                  │                  │                   │
+     │ 9. Complete quiz │                  │                   │
+     │    Score: 85%    │                  │                   │
+     ├─────────────────>│                  │                   │
+     │                  │                  │                   │
+     │                  │ 10. Save progress│                   │
+     │                  ├──────────────────>│                   │
+     │                  │                  │ 11. Update user  │
+     │                  │                  │    in CMS        │
+     │                  │                  ├──────────────────>│
+     │                  │                  │                  │
+     │                  │                  │ 12. Success      │
+     │                  │                  │<──────────────────┤
+     │                  │                  │                   │
+     │                  │ 13. Track event  │                   │
+     │                  ├───────────────────────────────────────> Personalize SDK
+     │                  │                  │                   │
+     │                  │ 14. Notify       │                   │
+     │                  │     manager      │                   │
+     │                  ├───────────────────────────────────────> Slack Webhook
+     │                  │                  │                   │
+     │ 15. See updated  │                  │                   │
+     │     progress     │                  │                   │
+     │<─────────────────┤                  │                   │
+     │                  │                  │                   │
 ```
+
+**Key Points:**
+- ✅ All user data stored in Contentstack CMS
+- ✅ Content fetched dynamically based on team & segment
+- ✅ Progress saved automatically
+- ✅ Analytics sent to Personalize
+- ✅ Managers notified via Slack
 
 ---
 
@@ -521,82 +1282,137 @@ User Action          Frontend                 Backend/API             Contentsta
 
 ## 📁 File Structure & Responsibilities
 
-### Directory Overview
+### Directory Overview (Simplified)
+
+**Think of the codebase like a house with different rooms:**
+
+```
+🏠 SkillStream DXP Application
+│
+├── 🚪 ENTRANCE (app/)
+│   │  Where users enter and navigate
+│   │
+│   ├── /login → Welcome page (enter name, select team)
+│   ├── /dashboard → Main learning area
+│   ├── /manager → Manager's office (team oversight)
+│   └── /api → Backend services (hidden from users)
+│
+├── 🎨 FURNITURE (components/)
+│   │  Reusable UI pieces
+│   │
+│   ├── cards/ → Module cards, SOP cards, Challenge Pro cards
+│   ├── layout/ → Sidebar, header, analytics panel
+│   ├── manager/ → Manager dashboard components
+│   └── ui/ → Buttons, inputs, badges (building blocks)
+│
+├── 🧠 BRAIN (contexts/ & lib/)
+│   │  How the app thinks and remembers
+│   │
+│   ├── contexts/ → Global state (user data, settings)
+│   └── lib/ → Services that talk to Contentstack
+│       ├── contentstack.ts → Fetches content
+│       ├── personalize.ts → Tracks analytics
+│       ├── challengePro.ts → Handles Challenge Pro
+│       └── tokenManager.ts → Manages API access
+│
+└── 📋 BLUEPRINTS (types/)
+    │  TypeScript definitions (what data looks like)
+```
+
+### Detailed File Structure
 
 ```
 cs-qa-skillstream-dxp/
 │
-├── 📱 app/                          → Next.js App Router Pages
-│   ├── layout.tsx                  → Root layout with providers
-│   ├── page.tsx                    → Home page (redirects)
-│   ├── globals.css                 → Global styles + Tailwind
+├── 📱 app/                          → Next.js Pages (User-Facing)
+│   ├── layout.tsx                  → Root layout (wraps everything)
+│   ├── page.tsx                    → Home page (redirects to login)
+│   ├── globals.css                 → Global styles
 │   │
 │   ├── login/
-│   │   └── page.tsx               → 🔐 Login with team selection
+│   │   └── page.tsx               → 🔐 User login & team selection
 │   │
 │   ├── dashboard/
-│   │   ├── layout.tsx             → 📊 3-column dashboard layout
-│   │   ├── page.tsx               → 🏠 Main personalized dashboard
-│   │   ├── modules/page.tsx       → 📚 All modules view
-│   │   ├── sops/page.tsx          → 📋 SOPs page
-│   │   ├── tools/page.tsx         → 🔧 Tools page
-│   │   └── analytics/page.tsx     → 📈 Analytics dashboard
+│   │   ├── layout.tsx             → 📊 3-column layout (Sidebar | Content | Analytics)
+│   │   ├── page.tsx               → 🏠 Personalized dashboard
+│   │   ├── modules/page.tsx       → 📚 All learning modules
+│   │   ├── sops/page.tsx          → 📋 Standard Operating Procedures
+│   │   ├── tools/page.tsx         → 🔧 Development tools
+│   │   └── analytics/page.tsx     → 📈 User analytics
 │   │
 │   ├── manager/
 │   │   ├── layout.tsx             → Manager portal layout
 │   │   ├── login/page.tsx         → Manager authentication
 │   │   └── dashboard/page.tsx     → 👔 Team oversight dashboard
 │   │
-│   └── api/
-│       ├── users/route.ts         → User CRUD operations
-│       ├── users/team/route.ts    → Get users by team
-│       ├── slack/notify/route.ts  → Slack webhook handler
-│       └── variants/[entryUid]/route.ts → Fetch variants
+│   └── api/                        → Backend API Endpoints
+│       ├── users/
+│       │   ├── route.ts           → User CRUD operations
+│       │   └── team/route.ts      → Get users by team
+│       ├── challenge-pro/
+│       │   ├── activate/route.ts  → Activate Challenge Pro
+│       │   ├── check/route.ts     → Check if experience exists
+│       │   └── get-variant/route.ts → Fetch variant content
+│       └── slack/notify/route.ts  → Send Slack notifications
 │
 ├── 🧩 components/                   → Reusable UI Components
 │   ├── cards/
-│   │   ├── ModuleCard.tsx         → Learning module display
-│   │   ├── SOPCard.tsx            → SOP display
-│   │   ├── ToolCard.tsx           → Tool display
+│   │   ├── ModuleCard.tsx         → Learning module card
+│   │   ├── SOPCard.tsx            → SOP card
+│   │   ├── ToolCard.tsx          → Tool card
+│   │   ├── ChallengeProCard.tsx   → Challenge Pro activation card
 │   │   ├── InterventionCard.tsx   → AT_RISK user alert
-│   │   └── AdvancedPathwayCard.tsx → HIGH_FLYER bonus
+│   │   └── AdvancedPathwayCard.tsx → HIGH_FLYER bonus content
 │   │
 │   ├── layout/
-│   │   ├── Sidebar.tsx            → Left navigation
-│   │   ├── Topbar.tsx             → Search + user info
-│   │   └── AnalyticsPanel.tsx     → Right analytics panel
+│   │   ├── Sidebar.tsx            → Left navigation menu
+│   │   ├── Topbar.tsx            → Top header with search
+│   │   └── AnalyticsPanel.tsx    → Right-side analytics
+│   │
+│   ├── manager/
+│   │   ├── UserList.tsx          → List of team members
+│   │   ├── TeamStats.tsx        → Team statistics cards
+│   │   └── UserDetailModal.tsx → Detailed user view
 │   │
 │   ├── modules/
-│   │   └── ModuleViewer.tsx       → Full content viewer modal
+│   │   └── ModuleViewer.tsx      → Full module content viewer
 │   │
 │   ├── quiz/
-│   │   └── QuizModal.tsx          → Interactive quiz
+│   │   └── QuizModal.tsx        → Interactive quiz component
 │   │
-│   └── ui/                         → ShadCN/UI base components
+│   └── ui/                        → Base UI components (ShadCN)
+│       ├── button.tsx
+│       ├── card.tsx
+│       └── ...
 │
-├── 🧠 contexts/                     → React Context Providers
-│   ├── AppContext.tsx             → Global state + user management
-│   ├── LivePreviewContext.tsx     → Visual Builder integration
-│   └── ManagerContext.tsx         → Manager portal state
+├── 🧠 contexts/                     → React State Management
+│   ├── AppContext.tsx             → Global user state & actions
+│   ├── LivePreviewContext.tsx    → Visual Builder integration
+│   └── ManagerContext.tsx        → Manager portal state
 │
 ├── 📚 lib/                          → Business Logic & Services
-│   ├── contentstack.ts            → CMS content fetching
-│   ├── contentstackSDK.ts         → SDK initialization
-│   ├── userService.ts             → User API client
-│   ├── teamService.ts             → Teams from Contentstack
-│   ├── personalize.ts             → Personalize SDK
-│   ├── livePreview.ts             → Live Preview config
-│   ├── slackNotifications.ts      → Slack notification client
-│   ├── onboarding.ts              → Onboarding calculation
-│   └── managerConfig.ts           → Manager notifications
+│   ├── contentstack.ts           → CMS content fetching (Delivery SDK)
+│   ├── contentstackSDK.ts        → SDK initialization
+│   ├── contentstackUser.ts        → User profile management
+│   ├── userService.ts            → User API client
+│   ├── teamService.ts            → Teams from Contentstack
+│   ├── personalize.ts            → Personalize SDK integration
+│   ├── livePreview.ts            → Live Preview SDK config
+│   ├── slackNotifications.ts     → Slack webhook client
+│   ├── onboarding.ts             → Onboarding calculation logic
+│   ├── challengePro.ts           → Challenge Pro feature logic
+│   ├── tokenManager.ts           → OAuth token management
+│   └── managerAuth.ts            → Manager authentication
 │
 ├── 📊 data/
 │   └── mockData.ts                → Fallback mock content
 │
 ├── 📝 types/
-│   └── index.ts                   → TypeScript interfaces
+│   └── index.ts                   → TypeScript type definitions
 │
 └── 📜 scripts/                      → Setup & utility scripts
+    ├── setup-contentstack.js     → Initial Contentstack setup
+    └── ...
 ```
 
 ---
