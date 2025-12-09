@@ -11,6 +11,7 @@ import { setPersonalizeAttributes, initializePersonalize, trackEvent } from '@/l
 import { clearVariantAliasCache } from '@/lib/contentstack';
 import { notifyOnboardingComplete, notifyQuizFailure, notifyAtRiskRecovery } from '@/lib/slackNotifications';
 import { getPersonalizedContent } from '@/data/mockData';
+import { tokenManager } from '@/lib/tokenManager';
 
 interface AppContextType {
   user: UserProfile | null;
@@ -102,6 +103,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     initializePersonalize().catch(() => {
       // Silent fail - don't block app if SDK fails
     });
+  }, []);
+
+  // Initialize and validate OAuth token on app load (non-blocking)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      tokenManager.ensureValidToken().catch((error) => {
+        // Silent fail - don't block app if token validation fails
+        console.warn('Token validation failed on app load:', error);
+      });
+    }
   }, []);
 
   // Remove localStorage save effects (now using Contentstack)
@@ -203,9 +214,24 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           if (!userToSet.challengeProVariantAlias) {
             console.log('⚠️ Challenge Pro enabled but no variant alias stored, fetching dynamically...');
             try {
+              // Get token from localStorage for API call
+              const tokenData = await tokenManager.getTokenData();
+              
+              // Build headers with token if available
+              const headers: HeadersInit = {};
+              
+              if (tokenData) {
+                headers['Authorization'] = `Bearer ${tokenData.access_token}`;
+                if (tokenData.organization_uid) {
+                  headers['organization-uid'] = tokenData.organization_uid;
+                }
+              }
+              
               const response = await fetch('/api/challenge-pro/get-alias?' + new URLSearchParams({
                 team: userToSet.team
-              }));
+              }), {
+                headers
+              });
               if (response.ok) {
                 const data = await response.json();
                 if (data.variantAlias) {

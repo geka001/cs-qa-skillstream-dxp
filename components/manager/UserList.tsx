@@ -374,6 +374,28 @@ export default function UserList({ users, onViewDetails }: UserListProps) {
                     </div>
                   </div>
 
+                  {/* High-Flyer Pro Status (only for users with Challenge Pro activated) */}
+                  {user.challengeProEnabled && (
+                    <div className="rounded-lg p-3 border bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/40 dark:to-indigo-950/40 border-purple-300 dark:border-purple-700">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Trophy className="w-5 h-5 text-purple-500" />
+                          <div>
+                            <div className="font-medium text-sm flex items-center gap-2">
+                              High-Flyer Pro
+                              <Badge variant="default" className="text-xs bg-purple-500">
+                                Challenge Pro
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Advanced Challenge Pro content activated
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Intervention History - Expandable */}
                   {(hadInterventions || user.segment === 'AT_RISK') && (
                     <div className="border rounded-lg overflow-hidden">

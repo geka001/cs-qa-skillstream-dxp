@@ -301,12 +301,26 @@ export async function activateChallengePro(
   userName: string
 ): Promise<ChallengeProResult> {
   try {
+    // Get token from localStorage for API call
+    const { tokenManager } = await import('@/lib/tokenManager');
+    const tokenData = await tokenManager.getTokenData();
+    
+    // Build headers with token if available
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json'
+    };
+    
+    if (tokenData) {
+      headers['Authorization'] = `Bearer ${tokenData.access_token}`;
+      if (tokenData.organization_uid) {
+        headers['organization-uid'] = tokenData.organization_uid;
+      }
+    }
+    
     // Call the API route to handle server-side operations
     const response = await fetch('/api/challenge-pro/activate', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers,
       body: JSON.stringify({
         teamName,
         userName
@@ -357,7 +371,23 @@ export async function checkChallengeProExists(teamName: string): Promise<{
   experienceShortUid?: string;
 }> {
   try {
-    const response = await fetch(`/api/challenge-pro/check?team=${encodeURIComponent(teamName)}`);
+    // Get token from localStorage for API call
+    const { tokenManager } = await import('@/lib/tokenManager');
+    const tokenData = await tokenManager.getTokenData();
+    
+    // Build headers with token if available
+    const headers: HeadersInit = {};
+    
+    if (tokenData) {
+      headers['Authorization'] = `Bearer ${tokenData.access_token}`;
+      if (tokenData.organization_uid) {
+        headers['organization-uid'] = tokenData.organization_uid;
+      }
+    }
+    
+    const response = await fetch(`/api/challenge-pro/check?team=${encodeURIComponent(teamName)}`, {
+      headers
+    });
     
     if (!response.ok) {
       return { exists: false };

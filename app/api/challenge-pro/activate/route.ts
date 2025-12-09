@@ -85,6 +85,16 @@ export async function POST(request: Request) {
         message: 'CMS credentials not configured. Set NEXT_PUBLIC_CONTENTSTACK_MANAGEMENT_TOKEN and NEXT_PUBLIC_CONTENTSTACK_API_KEY'
       }, { status: 500 });
     }
+
+    // Extract token and org_uid from request headers if provided by client
+    const authHeader = request.headers.get('authorization');
+    const accessTokenFromHeader = authHeader?.startsWith('Bearer ') 
+      ? authHeader.substring(7) 
+      : request.headers.get('x-access-token');
+    const orgUidFromHeader = request.headers.get('organization-uid') || request.headers.get('x-organization-uid');
+    
+    // Store request context for use in getPersonalizeAuthToken
+    currentRequest = request;
     
     const teamKey = teamName.toLowerCase().replace(/\s+/g, '-').replace('&', 'and');
     const experienceName = `${teamName}-challenge-pro`;
@@ -111,7 +121,7 @@ export async function POST(request: Request) {
       console.log(`✅ Challenge Pro variant already exists in CMS for ${teamName}`);
       
       // Try to find the corresponding Personalize experience to get the alias
-      const authToken = await getPersonalizeAuthToken();
+      const authToken = await getPersonalizeAuthToken(request);
       if (authToken) {
         const existingExp = await findExistingExperience(authToken, experienceName);
         if (existingExp) {
@@ -135,7 +145,7 @@ export async function POST(request: Request) {
       
       // If we can't find the Personalize experience with exact name, try to find any challenge-pro experience for this team
       console.log('🔍 Searching for any challenge-pro experience for team...');
-      const authToken2 = await getPersonalizeAuthToken();
+      const authToken2 = await getPersonalizeAuthToken(request);
       if (authToken2) {
         // Search all experiences for one matching this team
         const allExperiences = await findExistingExperience(authToken2, `${teamName.toLowerCase()}-challenge-pro`);
@@ -287,21 +297,40 @@ export async function POST(request: Request) {
 // TOKEN MANAGEMENT
 // ============================================================
 
-async function getPersonalizeAuthToken(): Promise<string | null> {
+// Store request context for token retrieval
+let currentRequest: Request | null = null;
+
+async function getPersonalizeAuthToken(request?: Request): Promise<string | null> {
   try {
-    // Option 1: Use cached refreshed token if available
+    // Use currentRequest if available, otherwise use passed request
+    const req = request || currentRequest;
+    
+    // Option 1: Use token from request headers (from client localStorage)
+    if (req) {
+      const authHeader = req.headers.get('authorization');
+      const accessTokenFromHeader = authHeader?.startsWith('Bearer ') 
+        ? authHeader.substring(7) 
+        : req.headers.get('x-access-token');
+      
+      if (accessTokenFromHeader) {
+        console.log('✅ Using access token from request headers');
+        return accessTokenFromHeader;
+      }
+    }
+    
+    // Option 2: Use cached refreshed token if available
     if (tokenCache && tokenCache.expiresAt > Date.now() + 60000) {
       console.log('✅ Using cached refreshed token');
       return tokenCache.accessToken;
     }
     
-    // Option 2: Use CONTENTSTACK_ACCESS_TOKEN from env
+    // Option 3: Use CONTENTSTACK_ACCESS_TOKEN from env
     if (CONTENTSTACK_ACCESS_TOKEN) {
       console.log('✅ Using CONTENTSTACK_ACCESS_TOKEN from environment');
       return CONTENTSTACK_ACCESS_TOKEN;
     }
     
-    // Option 3: Try to get new token via refresh token
+    // Option 4: Try to get new token via refresh token
     if (CONTENTSTACK_REFRESH_TOKEN && CLIENT_ID && CLIENT_SECRET) {
       console.log('🔄 Access token not set, trying refresh token...');
       const refreshedToken = await refreshAccessToken();
@@ -310,14 +339,14 @@ async function getPersonalizeAuthToken(): Promise<string | null> {
       }
     }
     
-    // Option 4: Try client credentials grant
+    // Option 5: Try client credentials grant
     if (CLIENT_ID && CLIENT_SECRET) {
       console.log('🔑 Getting token via client credentials...');
       return await getNewAccessToken();
     }
     
     console.error('❌ No CONTENTSTACK_ACCESS_TOKEN set and cannot refresh');
-    console.error('   Please set CONTENTSTACK_ACCESS_TOKEN in .env.local');
+    console.error('   Please set CONTENTSTACK_ACCESS_TOKEN in .env.local or provide token in request headers');
     return null;
     
   } catch (error) {
@@ -423,11 +452,11 @@ async function getNewAccessToken(): Promise<string | null> {
 // PERSONALIZE API FUNCTIONS
 // ============================================================
 
-function getPersonalizeHeaders(authToken: string): Record<string, string> {
+function getPersonalizeHeaders(authToken: string, orgUid?: string | null): Record<string, string> {
   return {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${authToken}`,
-    'organization_uid': ORG_UID,
+    'organization_uid': orgUid || ORG_UID,
     'x-project-uid': PERSONALIZE_PROJECT_UID,
   };
 }
@@ -845,6 +874,8 @@ async function createEntryVariant(teamName: string, baseEntryUid: string, cmsVar
     const taxonomies = [
       { taxonomy_uid: 'skill_level', term_uid: 'advanced' },
       { taxonomy_uid: 'user_segment', term_uid: 'high_flyer' },
+      { taxonomy_uid: 'content_category', term_uid: 'product_knowledge' },
+      { taxonomy_uid: 'content_category', term_uid: teamTermUid },
       { taxonomy_uid: 'user_segment', term_uid: 'high_flyer_pro' },
       { taxonomy_uid: 'product_team', term_uid: teamTermUid }
     ];
@@ -893,10 +924,10 @@ async function createEntryVariant(teamName: string, baseEntryUid: string, cmsVar
 
 async function publishEntryVariant(baseEntryUid: string, cmsVariantUid: string): Promise<boolean> {
   try {
-    // Publish the entire base entry (which publishes all its variants too)
-    console.log(`📤 Publishing base entry ${baseEntryUid} with all variants...`);
+    // First, publish the base entry
+    console.log(`📤 Publishing base entry ${baseEntryUid}...`);
     
-    const response = await fetch(
+    const baseResponse = await fetch(
       `${CMS_API_BASE}/content_types/qa_training_module/entries/${baseEntryUid}/publish`,
       {
         method: "POST",
@@ -910,36 +941,86 @@ async function publishEntryVariant(baseEntryUid: string, cmsVariantUid: string):
       }
     );
 
-    if (!response.ok) {
-      const err = await response.text();
-      console.error("❌ Entry publish failed:", err);
+    if (!baseResponse.ok) {
+      const err = await baseResponse.text();
+      console.error("❌ Base entry publish failed:", err);
+    } else {
+      console.log("✅ Base entry published successfully");
+    }
+    
+    // Now publish the specific variant
+    if (cmsVariantUid) {
+      console.log(`📤 Publishing variant ${cmsVariantUid}...`);
       
-      // Try alternative: bulk publish
-      console.log("📤 Trying bulk publish...");
-      const bulkResponse = await fetch(`${CMS_API_BASE}/bulk/publish`, {
-        method: "POST",
-        headers: getCmsHeaders(),
-        body: JSON.stringify({
-          entries: [{
-            uid: baseEntryUid,
-            content_type: "qa_training_module",
-            locale: "en-us"
-          }],
-          locales: ["en-us"],
-          environments: [CONTENTSTACK_ENVIRONMENT]
-        })
-      });
-      
-      if (!bulkResponse.ok) {
-        const bulkErr = await bulkResponse.text();
-        console.error("❌ Bulk publish also failed:", bulkErr);
-        console.log("📋 Please publish the entry manually in CMS");
+      const variantResponse = await fetch(
+        `${CMS_API_BASE}/content_types/qa_training_module/entries/${baseEntryUid}/publish`,
+        {
+          method: "POST",
+          headers: getCmsHeaders(),
+          body: JSON.stringify({
+            entry: {
+              environments: [CONTENTSTACK_ENVIRONMENT],
+              locales: ["en-us"],
+              variant: cmsVariantUid
+            }
+          })
+        }
+      );
+
+      if (!variantResponse.ok) {
+        const err = await variantResponse.text();
+        console.error("❌ Variant publish failed:", err);
         return false;
       }
       
-      console.log("✅ Entry published via bulk publish");
+      console.log("✅ Variant published successfully");
     } else {
-      console.log("✅ Entry published successfully with all variants");
+      // If no variant UID provided, try to get all variants and publish them
+      console.log("📤 No variant UID provided, fetching all variants to publish...");
+      
+      const variantsResponse = await fetch(
+        `${CMS_API_BASE}/content_types/qa_training_module/entries/${baseEntryUid}/variants?locale=en-us`,
+        {
+          method: "GET",
+          headers: getCmsHeaders(),
+        }
+      );
+
+      if (variantsResponse.ok) {
+        const variantsData = await variantsResponse.json();
+        const variants = variantsData.entries || [];
+        
+        console.log(`📋 Found ${variants.length} variant(s) to publish`);
+        
+        for (const variant of variants) {
+          const variantUid = variant._variant?._uid;
+          if (variantUid) {
+            console.log(`📤 Publishing variant: ${variantUid}...`);
+            
+            const publishResponse = await fetch(
+              `${CMS_API_BASE}/content_types/qa_training_module/entries/${baseEntryUid}/publish`,
+              {
+                method: "POST",
+                headers: getCmsHeaders(),
+                body: JSON.stringify({
+                  entry: {
+                    environments: [CONTENTSTACK_ENVIRONMENT],
+                    locales: ["en-us"],
+                    variant: variantUid
+                  }
+                })
+              }
+            );
+
+            if (publishResponse.ok) {
+              console.log(`✅ Variant ${variantUid} published successfully`);
+            } else {
+              const err = await publishResponse.text();
+              console.error(`❌ Failed to publish variant ${variantUid}:`, err);
+            }
+          }
+        }
+      }
     }
     
     // Wait for publish to propagate

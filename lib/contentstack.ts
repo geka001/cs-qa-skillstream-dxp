@@ -371,6 +371,120 @@ async function fetchEntriesWithVariants<T>(contentTypeUid: string, variantAliase
 }
 
 /**
+ * Fetch Challenge Pro variant details directly from Management API
+ * This is a fallback when Delivery API doesn't have published variants
+ * Returns the variant entry data directly from Management API
+ */
+async function fetchChallengeProVariantFromManagementAPI(
+  baseEntryUid: string,
+  variantUid: string,
+  locale: string = 'en-us'
+): Promise<ModuleEntry | null> {
+  try {
+    const apiKey = process.env.NEXT_PUBLIC_CONTENTSTACK_API_KEY || '';
+    const mgmtToken = process.env.NEXT_PUBLIC_CONTENTSTACK_MANAGEMENT_TOKEN || '';
+    
+    if (!apiKey || !mgmtToken) {
+      console.warn('⚠️ Missing Management API credentials for Challenge Pro variant fetch');
+      return null;
+    }
+    
+    console.log(`📦 Fetching Challenge Pro variant from Management API: ${variantUid}`);
+    
+    const response = await fetch(
+      `https://api.contentstack.io/v3/content_types/qa_training_module/entries/${baseEntryUid}/variants/${variantUid}?locale=${locale}`,
+      {
+        headers: {
+          'api_key': apiKey,
+          'authorization': mgmtToken,
+          'Content-Type': 'application/json'
+        },
+        cache: 'no-store'
+      }
+    );
+
+    if (!response.ok) {
+      console.error(`❌ Management API error fetching variant ${variantUid}:`, response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const variantEntry = data.entry;
+    
+    if (variantEntry) {
+      console.log(`✅ Fetched Challenge Pro variant from Management API: "${variantEntry.title}"`);
+      return variantEntry as ModuleEntry;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error fetching Challenge Pro variant from Management API:', error);
+    return null;
+  }
+}
+
+/**
+ * Fetch all Challenge Pro variants for a team from Management API
+ * Returns array of variant entries that match Challenge Pro pattern
+ */
+async function fetchChallengeProVariantsFromManagementAPI(
+  baseEntryUid: string,
+  teamName: string,
+  locale: string = 'en-us'
+): Promise<ModuleEntry[]> {
+  try {
+    const apiKey = process.env.NEXT_PUBLIC_CONTENTSTACK_API_KEY || '';
+    const mgmtToken = process.env.NEXT_PUBLIC_CONTENTSTACK_MANAGEMENT_TOKEN || '';
+    
+    if (!apiKey || !mgmtToken) {
+      console.warn('⚠️ Missing Management API credentials for Challenge Pro variants fetch');
+      return [];
+    }
+    
+    console.log(`📦 Fetching all variants from Management API for entry: ${baseEntryUid}`);
+    
+    const response = await fetch(
+      `https://api.contentstack.io/v3/content_types/qa_training_module/entries/${baseEntryUid}/variants?locale=${locale}`,
+      {
+        headers: {
+          'api_key': apiKey,
+          'authorization': mgmtToken,
+          'Content-Type': 'application/json'
+        },
+        cache: 'no-store'
+      }
+    );
+
+    if (!response.ok) {
+      console.error(`❌ Management API error fetching variants:`, response.status);
+      return [];
+    }
+
+    const data = await response.json();
+    const variants = data.entries || [];
+    
+    // Filter for Challenge Pro variants
+    const teamKey = teamName.toLowerCase().replace(/\s+/g, '-').replace('&', 'and');
+    const challengeProPattern = new RegExp(`${teamKey}.*challenge.*pro|pro:.*${teamKey}|challenge.*pro.*${teamKey}`, 'i');
+    
+    const challengeProVariants = variants.filter((variant: ModuleEntry) => {
+      const title = variant.title || '';
+      return challengeProPattern.test(title) || 
+             title.toLowerCase().includes('pro:') ||
+             title.toLowerCase().includes('challenge pro') ||
+             title.toLowerCase().includes('enterprise architecture');
+    });
+    
+    console.log(`✅ Found ${challengeProVariants.length} Challenge Pro variant(s) from Management API`);
+    
+    return challengeProVariants as ModuleEntry[];
+  } catch (error) {
+    console.error('Error fetching Challenge Pro variants from Management API:', error);
+    return [];
+  }
+}
+
+/**
  * Check if an entry has a single team (used for filtering)
  */
 function hasSingleTeam(entry: { target_teams?: string; team_taxonomy?: string[] }): boolean {
@@ -753,7 +867,9 @@ export async function getCsModules(
     // If Challenge Pro variant alias is provided (from user profile), use it
     // IMPORTANT: Put Challenge Pro alias FIRST so it takes priority over regular High Flyer variants
     // (both may modify the same base entry, and the first matching alias wins)
+    let challengeProAlias: string | undefined = undefined;
     if (challengeProVariantAlias && userSegment === 'HIGH_FLYER') {
+      challengeProAlias = challengeProVariantAlias;
       if (variantAliases) {
         // Put Challenge Pro FIRST to take priority
         variantAliases = `${challengeProVariantAlias},${variantAliases}`;
@@ -764,6 +880,7 @@ export async function getCsModules(
     }
     
     let entries: ModuleEntry[] = [];
+    let challengeProVariantFromMgmt: ModuleEntry | null = null;
     
     if (variantAliases) {
       // Use REST API with x-cs-variant-uid header to fetch variant content
@@ -771,6 +888,42 @@ export async function getCsModules(
       console.log(`📦 Fetching modules for ${userTeam} ${userSegment} with variant aliases: ${variantAliases}`);
       entries = await fetchEntriesWithVariants('qa_training_module', variantAliases);
       console.log(`📚 Fetched ${entries.length} module entries (with variant content)`);
+      
+      // FALLBACK: If Challenge Pro is enabled but Delivery API didn't return the variant,
+      // fetch it directly from Management API (workaround for publishing issues)
+      if (challengeProAlias && userSegment === 'HIGH_FLYER') {
+        // Check if Challenge Pro variant was returned from Delivery API
+        const hasChallengeProVariant = entries.some(entry => {
+          const title = entry.title || '';
+          return title.toLowerCase().includes('pro:') || 
+                 title.toLowerCase().includes('challenge pro') ||
+                 title.toLowerCase().includes('enterprise architecture');
+        });
+        
+        if (!hasChallengeProVariant) {
+          console.log(`⚠️ Challenge Pro variant not found in Delivery API, fetching from Management API...`);
+          
+          // Import TEAM_BASE_MODULES to get base entry UID
+          const { TEAM_BASE_MODULES } = await import('./challengePro');
+          const baseModule = TEAM_BASE_MODULES[userTeam];
+          
+          if (baseModule) {
+            // Try to find existing Challenge Pro variant from Management API
+            const challengeProVariants = await fetchChallengeProVariantsFromManagementAPI(
+              baseModule.entryUid,
+              userTeam
+            );
+            
+            if (challengeProVariants.length > 0) {
+              // Use the first Challenge Pro variant found
+              challengeProVariantFromMgmt = challengeProVariants[0];
+              console.log(`✅ Found Challenge Pro variant from Management API: "${challengeProVariantFromMgmt.title}"`);
+            } else {
+              console.log(`⚠️ No Challenge Pro variant found in Management API for ${userTeam}`);
+            }
+          }
+        }
+      }
     } else {
       // Regular users (ROOKIE, AT_RISK) - fetch via SDK without variants
       console.log(`📦 Fetching modules for ${userTeam} ${userSegment} (no variants)`);
@@ -780,6 +933,17 @@ export async function getCsModules(
         .find<ModuleEntry>();
       entries = (moduleResult as any).entries || [];
       console.log(`📚 Fetched ${entries.length} module entries`);
+    }
+    
+    // If we got Challenge Pro variant from Management API, add it to entries
+    // Replace the base entry if it exists, or add it as a new entry
+    if (challengeProVariantFromMgmt) {
+      const baseEntryUid = challengeProVariantFromMgmt.uid;
+      // Remove base entry if it exists (Challenge Pro variant replaces it)
+      entries = entries.filter(entry => entry.uid !== baseEntryUid);
+      // Add Challenge Pro variant
+      entries.push(challengeProVariantFromMgmt);
+      console.log(`✨ Added Challenge Pro variant from Management API to entries list`);
     }
 
     // Fetch ALL quiz items using SDK

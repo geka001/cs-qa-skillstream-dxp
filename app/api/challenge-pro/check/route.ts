@@ -31,8 +31,15 @@ export async function GET(request: Request) {
       );
     }
     
+    // Extract token and org_uid from request headers if provided by client
+    const authHeader = request.headers.get('authorization');
+    const accessTokenFromHeader = authHeader?.startsWith('Bearer ') 
+      ? authHeader.substring(7) 
+      : request.headers.get('x-access-token');
+    const orgUidFromHeader = request.headers.get('organization-uid') || request.headers.get('x-organization-uid');
+    
     // Check if credentials are configured
-    if (!CLIENT_ID || !CLIENT_SECRET || !ORG_UID || !PERSONALIZE_PROJECT_UID) {
+    if (!CLIENT_ID || !CLIENT_SECRET || (!ORG_UID && !orgUidFromHeader) || !PERSONALIZE_PROJECT_UID) {
       console.warn('⚠️ Personalize credentials not configured');
       return NextResponse.json({
         exists: false,
@@ -43,14 +50,24 @@ export async function GET(request: Request) {
     const teamKey = teamName.toLowerCase().replace(/\s+/g, '-').replace('&', 'and');
     const experienceName = `${teamKey}-high-flyer-pro`;
     
-    // Get auth token
-    const authToken = await getAuthToken();
+    // Get auth token - prefer token from headers, fall back to client credentials
+    let authToken: string | null = null;
+    if (accessTokenFromHeader) {
+      console.log('✅ Using access token from request headers');
+      authToken = accessTokenFromHeader;
+    } else {
+      authToken = await getAuthToken();
+    }
+    
     if (!authToken) {
       return NextResponse.json({
         exists: false,
         message: 'Failed to authenticate'
       });
     }
+    
+    // Use org_uid from headers if available, otherwise use env var
+    const orgUid = orgUidFromHeader || ORG_UID;
     
     // Search for existing experience - CORRECT endpoint format
     const response = await fetch(
@@ -59,7 +76,7 @@ export async function GET(request: Request) {
         headers: {
           'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json',
-          'organization_uid': ORG_UID,
+          'organization_uid': orgUid,
           'x-project-uid': PERSONALIZE_PROJECT_UID,
         },
       }

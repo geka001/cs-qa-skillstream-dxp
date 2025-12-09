@@ -27,6 +27,21 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Team parameter required' }, { status: 400 });
     }
     
+    // Extract token from request headers if provided by client
+    const authHeader = request.headers.get('authorization');
+    const accessTokenFromHeader = authHeader?.startsWith('Bearer ') 
+      ? authHeader.substring(7) 
+      : request.headers.get('x-access-token');
+    
+    // Use token from headers if available, otherwise use management token from env
+    const managementToken = accessTokenFromHeader || CONTENTSTACK_MANAGEMENT_TOKEN;
+    
+    if (!managementToken || !CONTENTSTACK_API_KEY) {
+      return NextResponse.json({ 
+        error: 'CMS credentials not configured or token not provided' 
+      }, { status: 401 });
+    }
+    
     // Check cache first
     if (aliasCache[team] && Date.now() - aliasCacheTime < CACHE_TTL) {
       return NextResponse.json({ 
@@ -41,7 +56,7 @@ export async function GET(request: Request) {
     const response = await fetch(`${CMS_API_BASE}/variant_groups`, {
       headers: {
         'api_key': CONTENTSTACK_API_KEY,
-        'authorization': CONTENTSTACK_MANAGEMENT_TOKEN,
+        'authorization': managementToken,
       },
     });
     
